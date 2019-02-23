@@ -4,7 +4,7 @@
 #include <endian.h> // check for cross platform compatibility
 #include "field.h"
 #include "method.h"
-
+#include "constantPool.h"
 ClassFile fromClassFile(unsigned char* filename){
     FILE *fd;
     fd = fopen(filename, "r");
@@ -104,4 +104,49 @@ ClassFile fromClassFile(unsigned char* filename){
     }
 
     return classFile;
+}
+
+char checkFormat(ClassFile cf){
+    //1
+    if (cf.magic != 0xCAFEBABE)
+        return 0;
+    
+    //2
+    for (int attributeCount=0; attributeCount<cf.attributes_count; attributeCount++){
+        uint16_t utf8Index = cf.attributes[attributeCount].attribute_name_index;
+        if (cf.constant_pool[utf8Index-1].tag != CONSTANT_Utf8){ // constant pool starts from 1 (lol, bcz oracle said)
+            //The constant_pool entry at attribute_name_index must be a CONSTANT_Utf8_info structure
+            return 0;
+        }
+    }
+    //4
+    for (int constantPoolCount=0; constantPoolCount < cf.constant_pool_count-1; constantPoolCount++){
+        switch (cf.constant_pool[constantPoolCount].tag){
+            case CONSTANT_Class:; // empty statement ;
+                uint16_t utf8Index = *(uint8_t*)cf.constant_pool[constantPoolCount].info;
+                if (cf.constant_pool[utf8Index-1].tag != CONSTANT_Utf8)
+                    return 0;
+                break;
+            case CONSTANT_Fieldref:;
+                // The class_index item of a CONSTANT_Fieldref_info structure may be either a class type or an interface type. 
+                CONSTANT_Fieldref_info fieldref = *(CONSTANT_Fieldref_info*)cf.constant_pool[constantPoolCount].info;
+                if (!(cf.constant_pool[fieldref.class_index-1].tag == CONSTANT_Class || cf.constant_pool[fieldref.class_index-1].tag == CONSTANT_InterfaceMethodref))
+                    return 0;
+                break;
+            case CONSTANT_InterfaceMethodref:;
+                CONSTANT_InterfaceMethodref_info interfaceMethodref = *(CONSTANT_InterfaceMethodref_info*)cf.constant_pool[constantPoolCount].info;
+                if (cf.constant_pool[interfaceMethodref.class_index-1].tag != CONSTANT_InterfaceMethodref)
+                    return 0;
+                break;
+            case CONSTANT_Methodref:;
+                // The class_index item of a CONSTANT_Fieldref_info structure may be either a class type or an interface type. 
+                CONSTANT_Methodref_info methodref = *(CONSTANT_Methodref_info*)cf.constant_pool[constantPoolCount].info;
+                if (cf.constant_pool[methodref.class_index-1].tag != CONSTANT_Class)
+                    return 0;
+                break;
+            default:
+                break;
+        }
+    }
+    return 1;
 }

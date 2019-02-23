@@ -1,6 +1,10 @@
 #include "constantPool.h"
 #include <stdio.h>
 #include <stdlib.h>
+/*
+Constant Pool Indexes written in the class file starts from 1; 
+to access a constant, please get the (index - 1)th value.
+*/
 cp_info cp_infoFromFile(FILE* fd){
     cp_info info;
     fread(&info.tag,1,1,fd); // tag len is 1

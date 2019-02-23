@@ -2,12 +2,20 @@
 #include <stdlib.h>
 //#include "heap.h"
 #include "classFile.h"
+#include <assert.h>
+#include "opcode.h" // gecici
+#include "stack.h"
+#include "attribute.h"
 
 int main(){
+    //(*initOpcodes()[0])(1, 1);
     //Heap heap;
     //unsigned char* classArea;
+    Stack JVMSTACK = initStack(255,TYPE_JVMSTACK);
+
     ClassFile myClass = fromClassFile("test/ArrayTest.class");
-    printf("%x\n",myClass.magic);
+    assert(checkFormat(myClass)); // file format check
+    //printf("%x, checkStatus: %d\n",myClass.magic,checkFormat(myClass));
     printf("Minor: %d, Major: %d\n", myClass.minor_version,myClass.major_version);
     printf("constant_pool_count: %d\n",myClass.constant_pool_count);
     printf("access_flags: %d\n",myClass.access_flags);
@@ -18,21 +26,31 @@ int main(){
     printf("methods_count: %d\n",myClass.methods_count);
     printf("attributes_count: %d\n",myClass.attributes_count);
 
-    for (int i = 0; i<myClass.constant_pool_count-1; i++){
+    for (int i = 0; i<myClass.methods_count; i++){
         printf("index: %d\n",i+1); // constant pool starts from 1
-        printf("Type: %d\n",myClass.constant_pool[i].tag);
-        if (myClass.constant_pool[i].tag == CONSTANT_Utf8){
-            //printf("val : %-*s\n", *(uint16_t*)myClass.constant_pool[i].info,myClass.constant_pool[i].info+2);
-            
-        }else if(myClass.constant_pool[i].tag == CONSTANT_Class){
-            CONSTANT_Class_info* class;
-            class = (CONSTANT_Class_info*)myClass.constant_pool[i].info;
-            CONSTANT_Utf8_info utf8;
-            utf8.length = *(uint16_t*) myClass.constant_pool[class->name_index].info;
-            utf8.bytes = myClass.constant_pool[class->name_index].info + 2;
-            printf ("ClassName: %-*s\n",utf8.length,utf8.bytes);
+        CONSTANT_Utf8_info utf8;
+        utf8.length = *(uint16_t*) myClass.constant_pool[myClass.methods[i].name_index].info;
+        utf8.bytes = myClass.constant_pool[myClass.methods[i].name_index].info + 2;
+        printf ("Method Name: %-*s\n",utf8.length,utf8.bytes);
+        printf("-\n");
+        for (int a = 0; a < myClass.methods[i].attributes_count; a++){
+            if (myClass.methods[i].access_flags == M_ACC_NATIVE || myClass.methods[i].access_flags == M_ACC_ABSTRACT){
+                attribute_info attribute;
+                attribute = myClass.methods[i].attributes[a];
+                utf8.length = *(uint16_t*) myClass.constant_pool[attribute.attribute_name_index].info;
+                utf8.bytes = myClass.constant_pool[attribute.attribute_name_index].info + 2;
+                printf ("Attribute Name: %-*s\n",utf8.length,utf8.bytes);
+            }else{
+                Code_attribute attribute;
+                attribute = getCode_AttributeFromAttribute_info(myClass.methods[i].attributes[a]);
+                printf("max_stack : %d\n",attribute.max_stack);
+                printf("max_locals : %d\n",attribute.max_locals);
+                printf("code_lenght : %d\n",attribute.code_length);
+            }
         }
-        printf("-----\n");
+        printf("----------\n");
     }
+
+
 
 }
