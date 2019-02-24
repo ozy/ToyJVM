@@ -74,13 +74,15 @@ typedef struct CONSTANT_Utf8_info {  // not aligned
 }CONSTANT_Utf8_info;
 
 typedef struct CONSTANT_MethodHandle_info { // not aligned
-    uint8_t reference_kind;
+    uint8_t reference_kind; // ref to method handle.
     // 1 byte compiler padding
-    uint16_t reference_index;
+    uint16_t reference_index; 
 }CONSTANT_MethodHandle_info;
 
 typedef struct CONSTANT_MethodType_info {
     uint16_t descriptor_index;
+    //The constant_pool entry at that index must be a CONSTANT_Utf8_info structure (§4.4.7) 
+    //representing a method descriptor (§4.3.3). 
 }CONSTANT_MethodType_info;
 
 typedef struct CONSTANT_InvokeDynamic_info {
@@ -88,8 +90,26 @@ typedef struct CONSTANT_InvokeDynamic_info {
     uint16_t name_and_type_index;
 }CONSTANT_InvokeDynamic_info;
 
+union CONSTANT_INFO {
+    CONSTANT_Class_info class_info;
+    CONSTANT_Methodref_info methodref_info;
+    CONSTANT_Fieldref_info  fieldref_info;
+    CONSTANT_InterfaceMethodref_info    interfaceMethodref_info;
+    CONSTANT_String_info    string_info;
+    CONSTANT_Integer_info   integer_info;
+    CONSTANT_Float_info float_info;
+    CONSTANT_Long_info  long_info;
+    CONSTANT_Double_info    double_info;
+    CONSTANT_NameAndType_info   nameAndType_info;
+    CONSTANT_Utf8_info  utf8_info;
+    CONSTANT_MethodHandle_info  methodHandle_info;
+    CONSTANT_InvokeDynamic_info invodeDynamic_info;
+}; // unified for runtime constant pool
 
-
+typedef struct constant{
+    cp_tags tag;
+    union CONSTANT_INFO info;
+}constant;
 
 cp_info cp_infoFromFile(FILE* fd);
 

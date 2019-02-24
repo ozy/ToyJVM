@@ -6,11 +6,12 @@
 #include "opcode.h" // gecici
 #include "stack.h"
 #include "attribute.h"
+#include "constantPool.h"
 
 int main(){
     //(*initOpcodes()[0])(1, 1);
-    //Heap heap;
-    //unsigned char* classArea;
+    constant* constantPool = malloc (sizeof(constant)*255);
+
     Stack JVMSTACK = initStack(255,TYPE_JVMSTACK);
 
     ClassFile myClass = fromClassFile("test/ArrayTest.class");
@@ -49,6 +50,33 @@ int main(){
             }
         }
         printf("----------\n");
+    }
+
+    cp_info info = myClass.constant_pool[myClass.this_class];
+    CONSTANT_Class_info* classInfo = (CONSTANT_Class_info*)info.info;
+
+    if (info.tag == CONSTANT_Class){
+        CONSTANT_Utf8_info utf8;
+        utf8.length = *(uint16_t*) myClass.constant_pool[classInfo->name_index].info;
+        utf8.bytes = myClass.constant_pool[classInfo->name_index].info + 2;
+
+        printf ("This Class Name: %-*s\n",utf8.length,utf8.bytes);
+
+    }
+
+    for (int i = 0; i<myClass.constant_pool_count; i++){
+        cp_info info = myClass.constant_pool[i];
+        CONSTANT_Class_info* classInfo = (CONSTANT_Class_info*)info.info;
+
+        if (info.tag == CONSTANT_Class){
+            CONSTANT_Utf8_info utf8;
+            utf8.length = *(uint16_t*) myClass.constant_pool[classInfo->name_index].info;
+            utf8.bytes = myClass.constant_pool[classInfo->name_index].info + 2;
+
+            printf ("Class Name: %-*s\n",utf8.length,utf8.bytes);
+
+        }
+
     }
 
 
