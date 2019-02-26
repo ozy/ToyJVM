@@ -14,7 +14,7 @@ typedef uint64_t Operand;
 typedef struct Frame{
     LocalVariable* localVariables;
     struct Stack* operandStack;
-    constant* runTimeConstantPoolRef;
+    cp_info* runTimeConstantPoolRef;
     uint32_t pc; // program counter
     Code_attribute code;
     //A run-time constant pool is a per-class or per-interface run-time representation of the constant_pool table in a class file (§4.4).

@@ -3,19 +3,19 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
-Stack initStack(uint64_t size, StackType stackType){
+Stack initStack(uint64_t numItems, StackType stackType){ // size is in operands
     //The maximum depth of the operand stack of a frame is determined at compile-time and 
     //is supplied along with the code for the method associated with the frame
     Stack stack;
-    stack.maxSize = size;
-    stack.top = 0;
+    stack.maxSize = stackType * numItems; // in bytes
+    stack.top = 0; // in bytes, again
     stack.stackType = stackType;
-    stack.stack = malloc(stackType * size); // afaik all stacks in here are frame sized. leak
+    stack.stack = malloc(stackType * numItems); // afaik all stacks in here are frame sized. leak
     return stack;
 }
  
 void pushStack(void* val, Stack* stack){
-    if (stack->top + stack->stackType < stack->maxSize){
+    if (stack->top + stack->stackType <= stack->maxSize){
         if (stack->stackType == TYPE_JVMSTACK){
             *(Frame*)(&stack->stack[stack->top])=*(Frame*)val;
         }else if(stack->stackType == TYPE_OPERANDSTACK){

@@ -123,24 +123,24 @@ char checkFormat(ClassFile cf){
     for (int constantPoolCount=0; constantPoolCount < cf.constant_pool_count-1; constantPoolCount++){
         switch (cf.constant_pool[constantPoolCount].tag){
             case CONSTANT_Class:; // empty statement ;
-                uint16_t utf8Index = *(uint8_t*)cf.constant_pool[constantPoolCount].info;
+                uint16_t utf8Index = cf.constant_pool[constantPoolCount].info.class_info.name_index;
                 if (cf.constant_pool[utf8Index-1].tag != CONSTANT_Utf8)
                     return 0;
                 break;
             case CONSTANT_Fieldref:;
                 // The class_index item of a CONSTANT_Fieldref_info structure may be either a class type or an interface type. 
-                CONSTANT_Fieldref_info fieldref = *(CONSTANT_Fieldref_info*)cf.constant_pool[constantPoolCount].info;
+                CONSTANT_Ref_info fieldref = cf.constant_pool[constantPoolCount].info.ref_info;
                 if (!(cf.constant_pool[fieldref.class_index-1].tag == CONSTANT_Class || cf.constant_pool[fieldref.class_index-1].tag == CONSTANT_InterfaceMethodref))
                     return 0;
                 break;
             case CONSTANT_InterfaceMethodref:;
-                CONSTANT_InterfaceMethodref_info interfaceMethodref = *(CONSTANT_InterfaceMethodref_info*)cf.constant_pool[constantPoolCount].info;
+                CONSTANT_Ref_info interfaceMethodref = cf.constant_pool[constantPoolCount].info.ref_info;
                 if (cf.constant_pool[interfaceMethodref.class_index-1].tag != CONSTANT_InterfaceMethodref)
                     return 0;
                 break;
             case CONSTANT_Methodref:;
                 // The class_index item of a CONSTANT_Fieldref_info structure may be either a class type or an interface type. 
-                CONSTANT_Methodref_info methodref = *(CONSTANT_Methodref_info*)cf.constant_pool[constantPoolCount].info;
+                CONSTANT_Ref_info methodref = cf.constant_pool[constantPoolCount].info.ref_info;
                 if (cf.constant_pool[methodref.class_index-1].tag != CONSTANT_Class)
                     return 0;
                 break;

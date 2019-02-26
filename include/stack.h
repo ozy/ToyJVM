@@ -15,7 +15,8 @@ typedef struct Stack{
     uint64_t maxSize;
 }Stack;
 
-Stack initStack(uint64_t size, StackType stackType);
+Stack initStack(uint64_t numItems, StackType stackType);
+// size is given as numItems here
 
 void* popStack(Stack* stack);
 void pushStack(void* val, Stack* stack);

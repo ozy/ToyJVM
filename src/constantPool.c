@@ -8,72 +8,59 @@ to access a constant, please get the (index - 1)th value.
 cp_info cp_infoFromFile(FILE* fd){
     cp_info info;
     fread(&info.tag,1,1,fd); // tag len is 1
-    
     switch (info.tag){
         case CONSTANT_Class:
-            info.info = malloc (sizeof(CONSTANT_Class_info)); // leak
-            fread(info.info,sizeof(CONSTANT_Class_info),1,fd);
-            ((CONSTANT_Class_info*)info.info)->name_index = be16toh(((CONSTANT_Class_info*)info.info)->name_index); // big order to host
-            // directly assigning memory saves a lot of memory access and
-            // moving operations. (Ofc for non padded ones.)
+            fread(&info.info.class_info.name_index,sizeof(info.info.class_info.name_index),1,fd);
+            info.info.class_info.name_index = be16toh(info.info.class_info.name_index); // big order to host
             break;
-        case CONSTANT_Fieldref: 
+        case CONSTANT_Fieldref:
         case CONSTANT_Methodref:
         case CONSTANT_InterfaceMethodref:
-            info.info = malloc (sizeof(CONSTANT_Methodref_info)); // leak
-            fread(info.info,sizeof(CONSTANT_Methodref_info),1,fd);
-            ((CONSTANT_Methodref_info*)info.info)->class_index = be16toh(((CONSTANT_Methodref_info*)info.info)->class_index); // big order to host
-            ((CONSTANT_Methodref_info*)info.info)->name_and_type_index = be16toh(((CONSTANT_Methodref_info*)info.info)->name_and_type_index); // big order to host
+            fread(&info.info.ref_info.class_index,sizeof(info.info.ref_info.class_index),1,fd);
+            fread(&info.info.ref_info.name_and_type_index,sizeof(info.info.ref_info.name_and_type_index),1,fd);
+            info.info.ref_info.class_index = be16toh(info.info.ref_info.class_index);
+            info.info.ref_info.name_and_type_index = be16toh(info.info.ref_info.name_and_type_index);
             break;
         case CONSTANT_String:
-            info.info = malloc (sizeof(CONSTANT_String_info)); // leak
-            fread(info.info,sizeof(CONSTANT_String_info),1,fd);
-            ((CONSTANT_String_info*)info.info)->string_index = be16toh(((CONSTANT_String_info*)info.info)->string_index); // big order to host
+            fread(&info.info.string_info.string_index,sizeof(info.info.string_info.string_index),1,fd);
+            info.info.string_info.string_index = be16toh(info.info.string_info.string_index);
             break;
         case CONSTANT_Integer:
         case CONSTANT_Float:
-            info.info = malloc (sizeof(CONSTANT_Integer_info)); // leak
-            fread(info.info,sizeof(CONSTANT_Integer_info),1,fd);
-            ((CONSTANT_Integer_info*)info.info)->bytes = be32toh(((CONSTANT_Integer_info*)info.info)->bytes); // big order to host
+            fread(&info.info._4BYTES_info.bytes,sizeof(info.info._4BYTES_info.bytes),1,fd);
+            info.info._4BYTES_info.bytes = be32toh(info.info._4BYTES_info.bytes);
             break;
         case CONSTANT_Long:
         case CONSTANT_Double:
-            info.info = malloc (sizeof(CONSTANT_Long_info)); // leak
-            fread(info.info,sizeof(CONSTANT_Long_info),1,fd);
-            ((CONSTANT_Long_info*)info.info)->bytes = be64toh(((CONSTANT_Long_info*)info.info)->bytes); // big order to host
+            fread(&info.info._8BYTES_info.bytes,sizeof(info.info._8BYTES_info.bytes),1,fd);
+            info.info._8BYTES_info.bytes = be64toh(info.info._8BYTES_info.bytes);
             break;
         case CONSTANT_NameAndType:
-            info.info = malloc (sizeof(CONSTANT_NameAndType_info)); // leak
-            fread(info.info,sizeof(CONSTANT_NameAndType_info),1,fd);
-            ((CONSTANT_NameAndType_info*)info.info)->name_index = be16toh(((CONSTANT_NameAndType_info*)info.info)->name_index); // big order to host
-            ((CONSTANT_NameAndType_info*)info.info)->descriptor_index = be16toh(((CONSTANT_NameAndType_info*)info.info)->descriptor_index); // big order to host
+            fread(&info.info.nameAndType_info.name_index,sizeof(info.info.nameAndType_info.name_index),1,fd);
+            fread(&info.info.nameAndType_info.descriptor_index,sizeof(info.info.nameAndType_info.descriptor_index),1,fd);
+            info.info.nameAndType_info.name_index = be16toh(info.info.nameAndType_info.name_index);
+            info.info.nameAndType_info.descriptor_index = be16toh(info.info.nameAndType_info.descriptor_index);
             break;
         case CONSTANT_Utf8:; // compiler wants a statement after label.
-            uint16_t length;
-            fread(&length,sizeof(length),1,fd); // len
-            length = be16toh(length);
-            info.info = malloc(sizeof(length) + length); //leak
-            fread(info.info + sizeof(length),length,1,fd); // offsetting 2 bytes + reading utf8
+            fread(&info.info.utf8_info.length,sizeof(info.info.utf8_info.length),1,fd); // len
+            info.info.utf8_info.length = be16toh(info.info.utf8_info.length);
+            info.info.utf8_info.bytes = malloc(info.info.utf8_info.length); //leak
+            fread(info.info.utf8_info.bytes,info.info.utf8_info.length,1,fd); // offsetting 2 bytes + reading utf8
             break;
         case CONSTANT_MethodHandle:; // compiler wants a statement after label.
-            CONSTANT_MethodHandle_info mhInfo;
-            info.info = malloc (3);
-            fread(&mhInfo.reference_kind,sizeof(mhInfo.reference_kind),1,fd); // reference kind
-            fread(&mhInfo.reference_index,sizeof(mhInfo.reference_index),1,fd); // ref index
-            *(uint8_t*)info.info = mhInfo.reference_kind;
-            *(uint16_t*)(info.info+1) = be16toh(mhInfo.reference_index);
+            fread(&info.info.methodHandle_info.reference_kind,sizeof(info.info.methodHandle_info.reference_kind),1,fd); // reference kind
+            fread(&info.info.methodHandle_info.reference_index,sizeof(info.info.methodHandle_info.reference_index),1,fd); // ref index
+            info.info.methodHandle_info.reference_index = be16toh(info.info.methodHandle_info.reference_index);
             break;
         case CONSTANT_MethodType:
-            info.info = malloc (sizeof(CONSTANT_MethodType_info)); // leak
-            fread(info.info,sizeof(CONSTANT_MethodType_info),1,fd);
-            ((CONSTANT_MethodType_info*)info.info)->descriptor_index = be16toh(((CONSTANT_MethodType_info*)info.info)->descriptor_index); // big order to host
-
+            fread(&info.info.methodType_info.descriptor_index,sizeof(info.info.methodType_info.descriptor_index),1,fd);
+            info.info.methodType_info.descriptor_index = be16toh(info.info.methodType_info.descriptor_index);
             break;
         case CONSTANT_InvokeDynamic:
-            info.info = malloc (sizeof(CONSTANT_InvokeDynamic_info)); // leak
-            fread(info.info,sizeof(CONSTANT_InvokeDynamic_info),1,fd);
-            ((CONSTANT_InvokeDynamic_info*)info.info)->bootstrap_method_attr_index = be16toh(((CONSTANT_InvokeDynamic_info*)info.info)->bootstrap_method_attr_index); // big order to host
-            ((CONSTANT_InvokeDynamic_info*)info.info)->name_and_type_index = be16toh(((CONSTANT_InvokeDynamic_info*)info.info)->name_and_type_index); // big order to host
+            fread(&info.info.invodeDynamic_info.bootstrap_method_attr_index,sizeof(info.info.invodeDynamic_info.bootstrap_method_attr_index),1,fd);
+            fread(&info.info.invodeDynamic_info.name_and_type_index,sizeof(info.info.invodeDynamic_info.name_and_type_index),1,fd);
+            info.info.invodeDynamic_info.bootstrap_method_attr_index = be16toh(info.info.invodeDynamic_info.bootstrap_method_attr_index);
+            info.info.invodeDynamic_info.name_and_type_index = be16toh(info.info.invodeDynamic_info.name_and_type_index);
             break;
 
         default:

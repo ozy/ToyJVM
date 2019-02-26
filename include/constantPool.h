@@ -20,11 +20,6 @@ typedef enum cp_tags{
     CONSTANT_InvokeDynamic=18
 }cp_tags;
 
-typedef struct cp_info {
-    uint8_t tag;
-    uint8_t* info;
-}cp_info;
-
 
 //////////////////////////////
 // CONSTANT INFO STRUCTURES //
@@ -37,30 +32,24 @@ typedef struct CONSTANT_Class_info {
     uint16_t name_index;
 }CONSTANT_Class_info;
 
-typedef struct CONSTANT_Methodref_info{
+typedef struct CONSTANT_Ref_info{
     // also applies for The CONSTANT_Fieldref_info, CONSTANT_Methodref_info, and CONSTANT_InterfaceMethodref_info Structures
     uint16_t class_index;
     uint16_t name_and_type_index;
-}CONSTANT_Methodref_info;
-typedef struct CONSTANT_Methodref_info CONSTANT_Fieldref_info;
-typedef struct CONSTANT_Methodref_info CONSTANT_InterfaceMethodref_info;
+}CONSTANT_Ref_info;
 
 
 typedef struct CONSTANT_String_info {
     uint16_t string_index;
 }CONSTANT_String_info;
 
-typedef struct CONSTANT_Integer_info {
+typedef struct CONSTANT_4BYTES_info {
     uint32_t bytes;
-}CONSTANT_Integer_info;
-typedef struct CONSTANT_Integer_info CONSTANT_Float_info;
+}CONSTANT_4BYTES_info;
 
-typedef struct CONSTANT_Long_info {
+typedef struct CONSTANT_8BYTES_info {
     uint64_t bytes;
-}CONSTANT_Long_info;
-typedef struct CONSTANT_Long_info CONSTANT_Double_info;
-// to convert long: (for big endian)
-// ((long) high_bytes << 32) + low_bytes
+}CONSTANT_8BYTES_info;
 
 typedef struct CONSTANT_NameAndType_info {
     uint16_t name_index;
@@ -90,26 +79,41 @@ typedef struct CONSTANT_InvokeDynamic_info {
     uint16_t name_and_type_index;
 }CONSTANT_InvokeDynamic_info;
 
+typedef enum array_type{
+    T_BOOLEAN =4,
+    T_CHAR    =5,
+    T_FLOAT   =6,
+    T_DOUBLE  =7,
+    T_BYTE 	  =8,
+    T_SHORT   =9,
+    T_INT 	  =10,
+    T_LONG 	  =11
+}array_type;
+
+typedef struct CONSTANT_Array_info{  // custom
+    int32_t size; // array size is signed 32 bit int.
+    array_type atype;
+    uint8_t* ref;
+}CONSTANT_Array_info;
+
 union CONSTANT_INFO {
     CONSTANT_Class_info class_info;
-    CONSTANT_Methodref_info methodref_info;
-    CONSTANT_Fieldref_info  fieldref_info;
-    CONSTANT_InterfaceMethodref_info    interfaceMethodref_info;
+    CONSTANT_Ref_info   ref_info;
     CONSTANT_String_info    string_info;
-    CONSTANT_Integer_info   integer_info;
-    CONSTANT_Float_info float_info;
-    CONSTANT_Long_info  long_info;
-    CONSTANT_Double_info    double_info;
+    CONSTANT_4BYTES_info   _4BYTES_info;
+    CONSTANT_8BYTES_info  _8BYTES_info;
     CONSTANT_NameAndType_info   nameAndType_info;
     CONSTANT_Utf8_info  utf8_info;
     CONSTANT_MethodHandle_info  methodHandle_info;
+    CONSTANT_MethodType_info  methodType_info;
     CONSTANT_InvokeDynamic_info invodeDynamic_info;
 }; // unified for runtime constant pool
 
-typedef struct constant{
-    cp_tags tag;
+typedef struct cp_info {
+    uint8_t tag;
     union CONSTANT_INFO info;
-}constant;
+}cp_info;
+
 
 cp_info cp_infoFromFile(FILE* fd);
 
