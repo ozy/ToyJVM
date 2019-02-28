@@ -6,7 +6,7 @@ DEPDIR	= dep
 
 CC	= gcc
 TARGET	= main
-CFLAGS	= -Wall -Wextra -pedantic -g -O0 -I$(HDRDIR)
+CFLAGS	= -g -O0 -I$(HDRDIR)
 LFLAGS	=
 
 SOURCES	:= $(wildcard $(SRCDIR)/*.c)
