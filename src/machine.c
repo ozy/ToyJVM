@@ -3,13 +3,41 @@
 #include "opcode.h"
 #include "stack.h"
 
-void* executeCode(Frame frame, OPCODE** opcodes){ // anything can be returned from an execution
-    for (int i =0; i<frame.code.code_length; i++){
-        printf("0x%1x, opStackTop: %d\n", frame.code.code[i],frame.operandStack->top);
-        void* retCode = opcodes[frame.code.code[i]](&frame);
-        if (retCode != NULL){
-            return (retCode);
+void* executeCode(Stack* JVMSTACK, OPCODE** opcodes){ // anything can be returned from an execution
+
+    Frame* frame;
+    void* retCode;
+    while (1){
+        frame = (Frame*)peekStack(JVMSTACK);
+        printf("peeked stack is %p\n",frame);
+
+        printf("---Code Dump---\n");
+        for (int qq=0; qq<frame->code->code_length; qq++)
+            printf("%d: 0x%1x\n", qq,frame->code->code[qq]);
+        printf("-----DUMP------\n");
+
+        for (; frame->pc < frame->code->code_length; frame->pc++){
+            printf ("current frame pc: %d\n",frame->pc);
+            retCode = NULL;
+            //printf("0x%1x, opStackTop: %d\n", frame->code->code[frame->pc],frame->operandStack->top);
+            retCode = opcodes[frame->code->code[frame->pc]](frame);
+            printf("---------\n");
+            if (retCode != NULL){
+                // the opcode returned something to push
+                // to the invoker operand stack
+                popStack(JVMSTACK); //destroy completely
+                break;
+            }
+            if (frame != (Frame*)peekStack(JVMSTACK)){
+                printf("frame changed\n");
+                break; // frame changed, break!
+            }
+        }
+        if (peekStack(JVMSTACK) == NULL){
+            return NULL;
+        }else if (retCode != NULL){
+            Frame* frameInvoker = (Frame*)peekStack(JVMSTACK);
+            pushStack(retCode,frameInvoker->operandStack);
         }
     }
-    return NULL;
 }

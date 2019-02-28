@@ -1,6 +1,7 @@
 #ifndef CLASSFILE_H_
 #define CLASSFILE_H_
 #include <inttypes.h>
+#include "machine.h"
 #include "constantPool.h"
 #include "field.h"
 #include "method.h"
@@ -25,8 +26,10 @@ typedef struct ClassFile{
     attribute_info* attributes;
 }ClassFile;
 
-ClassFile fromClassFile(unsigned char* filename);
-
+ClassFile classFromFile(unsigned char* filename);
+ClassFile* getClassFromName(CONSTANT_Utf8_info utf8, Machine machine);
+char isUtf8Equal(CONSTANT_Utf8_info c1, CONSTANT_Utf8_info c2);
+method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef);
 char checkFormat(ClassFile cf);
 /*
 Returns 1 if the class file passes the test. Anything else if not.

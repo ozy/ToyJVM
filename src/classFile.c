@@ -5,7 +5,9 @@
 #include "field.h"
 #include "method.h"
 #include "constantPool.h"
-ClassFile fromClassFile(unsigned char* filename){
+#include "string.h"
+
+ClassFile classFromFile(unsigned char* filename){
     FILE *fd;
     fd = fopen(filename, "r");
 
@@ -104,6 +106,37 @@ ClassFile fromClassFile(unsigned char* filename){
     }
 
     return classFile;
+}
+char isUtf8Equal(CONSTANT_Utf8_info c1, CONSTANT_Utf8_info c2){
+    if (c1.length != c2.length)
+        return 0; // false
+    return !strncmp(c1.bytes,c2.bytes,c1.length);
+}
+
+ClassFile* getClassFromName(CONSTANT_Utf8_info utf8, Machine machine){
+    // todo BTree
+    for (int classId=0; classId<machine.numClasses; classId++){
+        ClassFile* class = &machine.classFiles[classId];
+        if (isUtf8Equal(class->constant_pool[class->this_class-1].info.utf8_info, utf8)){
+            return class;
+        }
+    }
+    return NULL;
+}
+
+method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef){
+    CONSTANT_NameAndType_info* nameAndType = &cf->constant_pool[methodOrInterfaceRef.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info name_utf8 = cf->constant_pool[nameAndType->name_index-1].info.utf8_info;
+    CONSTANT_Utf8_info descriptor_utf8 = cf->constant_pool[nameAndType->descriptor_index-1].info.utf8_info;
+    printf ("Invoked Method Name: %.*s, %.*s\n",name_utf8.length,name_utf8.bytes, descriptor_utf8.length,descriptor_utf8.bytes);
+    for (int methodId=0; methodId < cf->methods_count; methodId++){
+        CONSTANT_Utf8_info classMethodName_utf8 = cf->constant_pool[cf->methods[methodId].name_index-1].info.utf8_info; // todo possibly optimize this func
+        if (isUtf8Equal(name_utf8, classMethodName_utf8)){
+            //printf ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes);
+            return &cf->methods[methodId];
+        }
+    }
+    return NULL; // method is not in this class
 }
 
 char checkFormat(ClassFile cf){

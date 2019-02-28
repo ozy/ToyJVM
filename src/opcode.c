@@ -4,9 +4,11 @@
 #include "stack.h"
 #include <endian.h>
 #include "constantPool.h"
+#include "frame.h"
+#include "classFile.h"
 
 uint8_t read1Byte(Frame* frame){
-    return *(uint8_t*)&frame->code.code[++frame->pc]; // to get the first arg. of the opcode
+    return *(uint8_t*)&frame->code->code[++frame->pc]; // to get the first arg. of the opcode
 }
 uint16_t read2Bytes(Frame* frame){
     /*
@@ -14,17 +16,17 @@ uint16_t read2Bytes(Frame* frame){
     00  01  02
     ^
     */
-    uint16_t val=be16toh(*(uint16_t*)&frame->code.code[frame->pc+1]);
+    uint16_t val=be16toh(*(uint16_t*)&frame->code->code[frame->pc+1]);
     frame->pc += 2;
     return val;
 }
 uint32_t read4Bytes(Frame* frame){
-    uint32_t val=be32toh(*(uint32_t*)&frame->code.code[frame->pc+1]);
+    uint32_t val=be32toh(*(uint32_t*)&frame->code->code[frame->pc+1]);
     frame->pc += 4;
     return val;
 }
 uint64_t read8Bytes(Frame* frame){
-    uint64_t val=be64toh(*(uint64_t*)&frame->code.code[frame->pc+1]);
+    uint64_t val=be64toh(*(uint64_t*)&frame->code->code[frame->pc+1]);
     frame->pc += 8;
     return val;
 }
@@ -73,6 +75,12 @@ void* OPCODE_DCONST_1(Frame* frame){
     pushStack(&val,frame->operandStack);
 	return NULL;
 }
+void* OPCODE_DCONST_2(Frame* frame){
+    double val = 2.0;
+    pushStack(&val,frame->operandStack);
+	return NULL;
+}
+
 void* OPCODE_BIPUSH(Frame* frame){
     uint64_t val = read1Byte(frame);
     pushStack(&val,frame->operandStack);
@@ -85,7 +93,7 @@ void* OPCODE_SIPUSH(Frame* frame){
 }
 void* OPCODE_LDC(Frame* frame){
     uint8_t index = read1Byte(frame);
-    cp_info aConstant = frame->runTimeConstantPoolRef[index-1];
+    cp_info aConstant = frame->classRef->constant_pool[index-1];
     uint64_t val;
     if (aConstant.tag == CONSTANT_Integer){
         val = aConstant.info._4BYTES_info.bytes;
@@ -115,7 +123,7 @@ void* OPCODE_LDC(Frame* frame){
 }
 void* OPCODE_LCD_W(Frame* frame){
     uint16_t index = read2Bytes(frame);
-    cp_info aConstant = frame->runTimeConstantPoolRef[index-1];
+    cp_info aConstant = frame->classRef->constant_pool[index-1];
     uint64_t val;
     if (aConstant.tag == CONSTANT_Integer){
         val = aConstant.info._4BYTES_info.bytes;
@@ -341,19 +349,91 @@ void* OPCODE_ILOAD_3(Frame* frame){
     pushStack(&frame->localVariables[3], frame->operandStack);
 	return NULL;
 }
-
 void* OPCODE_IRETURN(Frame* frame){
     uint64_t* val = malloc(sizeof(val));
     *val = *(uint64_t*)popStack(frame->operandStack);
     return val;
 }
+void* OPCODE_RETURN(Frame* frame){
+    popStack(frame->JVMSTACK);
+    printf("discarded\n");
+    // current frame is discarded
+    return NULL;
+}
+void* OPCODE_INVOKESTATIC(Frame* frame){
+    uint16_t index = read2Bytes(frame); // normally indexes pointing into 
+    // the constant pool are index - 1 in reality. But in our case, the
+    // constant pool and the run-time constant pool are the same except
+    // run time constant pool takes indexes as is but the normal constant
+    // pool takes indexes starting from 1. The extra +1 is because
+    Frame newFrame;
 
+    if (!(frame->classRef->constant_pool[index-1].tag == CONSTANT_Methodref || frame->classRef->constant_pool[index-1].tag == CONSTANT_InterfaceMethodref)){
+        // index must be a symbolic reference to a method or an interface method
+        // if the resolved method is an instance method, the invokestatic instruction throws an IncompatibleClassChangeError. 
+        printf("invoked method ref is invalid index is %d\n",index);
+    }
+    CONSTANT_Ref_info methodOrInterfaceRef = frame->classRef->constant_pool[index-1].info.ref_info;
+    //printf ("Method's Class Name: %.*s\n",name_utf8.length,name_utf8.bytes);
+    method_info* method = canClassHandleMethod(frame->classRef, methodOrInterfaceRef);
+
+    if (method != NULL){
+        newFrame.code = malloc (sizeof(Code_attribute));
+        *newFrame.code = getCode_AttributeFromAttribute_info(method->attributes[0]);
+        //method->attributes[0]
+    }else{
+        // todo method not found
+        printf("method not found \n");
+    }
+    //CONSTANT_Utf8_info utf8 = frame->classRef->constant_pool[method->name_index-1].info.utf8_info;
+    //printf ("Code Name: %.*s\n",utf8.length,utf8.bytes);
+    //printf("max_stack : %d\n",attribute->max_stack);
+    //printf("max_locals : %d\n",attribute->max_locals);
+    //printf("code_lenght : %d\n",attribute->code_length);
+
+    newFrame.localVariables = malloc (sizeof(LocalVariable) * newFrame.code->max_locals);
+    if (method->access_flags != M_ACC_NATIVE){
+        // todo: parse method descriptor        
+    }
+
+    Stack operandStack = initStack(newFrame.code->max_stack, TYPE_OPERANDSTACK);
+    newFrame.operandStack = &operandStack;
+
+    newFrame.pc = 0;
+    newFrame.classRef = frame->classRef;
+    newFrame.JVMSTACK = frame->JVMSTACK;
+
+    pushStack(&newFrame, frame->JVMSTACK);
+
+    frame->pc++;
+    return NULL;
+}
 OPCODE** initOpcodes(){
     // jumptable
     OPCODE** opcodes = malloc (sizeof(OPCODE*) * 255); // leak
-    //(*opcodes)(int)[0] = &printSomething;
+    opcodes[0x10] = OPCODE_BIPUSH;
     opcodes[0x1a] = OPCODE_ILOAD_0;
     opcodes[0x1b] = OPCODE_ILOAD_1;
+
+    opcodes[0x2] = OPCODE_ICONST_M1;
+    opcodes[0x3] = OPCODE_ICONST_0;
+    opcodes[0x4] = OPCODE_ICONST_1;
+    opcodes[0x5] = OPCODE_ICONST_2;
+    opcodes[0x6] = OPCODE_ICONST_3;
+    opcodes[0x7] = OPCODE_ICONST_4;
+    opcodes[0x8] = OPCODE_ICONST_5;
+
+    opcodes[0x2a] = OPCODE_NLOAD_0;
+    opcodes[0x2b] = OPCODE_NLOAD_1;
+
+    opcodes[0xb] = OPCODE_DCONST_0;
+    opcodes[0xc] = OPCODE_DCONST_1;
+    opcodes[0xd] = OPCODE_DCONST_2;
+
+    opcodes[0xb1] = OPCODE_RETURN;
+    opcodes[0xb7] = OPCODE_INVOKESTATIC;
+    opcodes[0xb8] = OPCODE_INVOKESTATIC;
+    
     opcodes[0x60] = OPCODE_IADD;
     opcodes[0xac] = OPCODE_IRETURN;
     return opcodes;

@@ -20,4 +20,5 @@ Stack initStack(uint64_t numItems, StackType stackType);
 
 void* popStack(Stack* stack);
 void pushStack(void* val, Stack* stack);
+void* peekStack(Stack* stack);
 #endif 

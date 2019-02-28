@@ -42,5 +42,10 @@ void* popStack(Stack* stack){
         return val;
     }else{
         // todo stack empty
+        return NULL;
     }
+}
+
+void* peekStack(Stack* stack){
+    return (stack->stack + stack->top - stack->stackType);
 }

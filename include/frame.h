@@ -4,6 +4,7 @@
 //#include "stack.h"
 #include "attribute.h"
 #include "constantPool.h"
+
 typedef uint64_t LocalVariable;
 // A single local variable can hold a value of type boolean, byte, char, short, int, float, reference, or returnAddress. 
 // A pair of local variables can hold a value of type long or double. 
@@ -14,11 +15,14 @@ typedef uint64_t Operand;
 typedef struct Frame{
     LocalVariable* localVariables;
     struct Stack* operandStack;
-    cp_info* runTimeConstantPoolRef;
+    struct Stack* JVMSTACK; // ref to jvmstack.
+    struct ClassFile* classRef;
     uint32_t pc; // program counter
-    Code_attribute code;
+    Code_attribute* code;
     //A run-time constant pool is a per-class or per-interface run-time representation of the constant_pool table in a class file (§4.4).
     //It contains several kinds of constants, ranging from numeric literals known at compile-time to method and field references that must be resolved at run-time.
 } Frame;
+
+Frame createFrame();
 
 #endif

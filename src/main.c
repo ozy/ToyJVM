@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 //#include "heap.h"
+#include "machine.h"
 #include "classFile.h"
 #include <assert.h>
 #include "opcode.h" // gecici
@@ -10,12 +11,7 @@
 #include "machine.h"
 
 int main(){
-    //(*initOpcodes()[0])(1, 1);
-    cp_info* rt_constantPool = malloc (sizeof(cp_info)*255);
-
-    Stack JVMSTACK = initStack(255,TYPE_JVMSTACK);
-
-    ClassFile myClass = fromClassFile("test/returnTest.class");
+    ClassFile myClass = classFromFile("test/returnTest.class");
     assert(checkFormat(myClass)); // file format check
     //printf("%x, checkStatus: %d\n",myClass.magic,checkFormat(myClass));
     printf("Minor: %d, Major: %d\n", myClass.minor_version,myClass.major_version);
@@ -72,24 +68,27 @@ int main(){
 
     }
 
-    Frame fakeFrame;
-    fakeFrame.localVariables = malloc (sizeof(LocalVariable) * 2);
-    fakeFrame.localVariables[0]= 30;
-    fakeFrame.localVariables[1]= 11;
+    Stack JVMSTACK = initStack(255,TYPE_JVMSTACK);
+
+    Frame newFrame;
+
+    Code_attribute* attribute = malloc (sizeof(Code_attribute));
+    *attribute = getCode_AttributeFromAttribute_info(myClass.methods[1].attributes[0]);
+
+    newFrame.code = attribute;
+    newFrame.localVariables = malloc (sizeof(LocalVariable) * attribute->max_locals);
+
+    Stack operandStack = initStack(attribute->max_stack, TYPE_OPERANDSTACK);
+    newFrame.operandStack = &operandStack;
     
+    newFrame.pc = 0;
+    newFrame.classRef = &myClass;
+    newFrame.JVMSTACK = &JVMSTACK;
 
-    Stack operandStack = initStack(2, TYPE_OPERANDSTACK);
-    fakeFrame.operandStack = &operandStack;
-
-    Code_attribute attribute;
-    attribute = getCode_AttributeFromAttribute_info(myClass.methods[2].attributes[0]);
-    fakeFrame.code = attribute;
-
-    fakeFrame.pc = 0;
-
-    fakeFrame.runTimeConstantPoolRef = malloc(sizeof(cp_info) * 255);
-
-    void* retCode = executeCode(fakeFrame, initOpcodes());
-    printf("return is %d \n", *(uint64_t*)retCode);
+    pushStack(&newFrame, &JVMSTACK);
+    void* retCode = executeCode(&JVMSTACK, initOpcodes());
+    if (retCode == NULL){
+        printf("Execution Stack Finished\n");
+    }
 
 }
