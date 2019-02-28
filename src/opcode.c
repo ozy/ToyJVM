@@ -185,7 +185,9 @@ void* OPCODE_NSTORE_3(Frame* frame){
 	return NULL;
 }
 void* OPCODE_POP(Frame* frame){
-    popStack(frame->operandStack);
+    //popStack(frame->operandStack);
+    int64_t discardedRetVal = *(int64_t*) popStack(frame->operandStack);
+    printf("Discarded Return Value is %d\n",discardedRetVal);
 	return NULL;
 }
 void* OPCODE_DUP(Frame* frame){
@@ -333,22 +335,33 @@ void* OPCODE_DCMPG(Frame* frame){
 	return NULL;
 }
 
-void* OPCODE_ILOAD_0(Frame* frame){
-    pushStack(&frame->localVariables[0], frame->operandStack);
+void* OPCODE_IF_ICMPGE(Frame* frame){
+    uint16_t offset = read2Bytes(frame);
+    int64_t val2 = (int32_t)*(int64_t*) popStack(frame->operandStack);
+    int64_t val1 = (int32_t)*(int64_t*) popStack(frame->operandStack);
+    if (val1 >= val2){
+        frame->pc += offset - 3;
+        // -1 because the main loop will increase 1 after this opcode to
+        // get the next opcode
+    }
 	return NULL;
 }
-void* OPCODE_ILOAD_1(Frame* frame){
-    pushStack(&frame->localVariables[1], frame->operandStack);
-	return NULL;
+
+void* OPCODE_IINC(Frame* frame){
+    uint8_t index = read1Byte(frame);
+    uint8_t incrementAmount = read1Byte(frame);
+    *(int64_t*)&frame->localVariables[index] = (int32_t)(*(int64_t*)&frame->localVariables[index] + *(int8_t*)&incrementAmount);
+    return NULL;
 }
-void* OPCODE_ILOAD_2(Frame* frame){
-    pushStack(&frame->localVariables[2], frame->operandStack);
-	return NULL;
+
+void* OPCODE_GOTO(Frame* frame){
+    uint16_t offset = read2Bytes(frame); // branch offset
+    frame->pc += *(int16_t*)&offset - 3;
+    // -1 because the main loop will increase 1 after this opcode to
+    // get the next opcode
+    return NULL;
 }
-void* OPCODE_ILOAD_3(Frame* frame){
-    pushStack(&frame->localVariables[3], frame->operandStack);
-	return NULL;
-}
+
 void* OPCODE_IRETURN(Frame* frame){
     uint64_t* val = malloc(sizeof(val));
     *val = *(uint64_t*)popStack(frame->operandStack);
@@ -356,7 +369,6 @@ void* OPCODE_IRETURN(Frame* frame){
 }
 void* OPCODE_RETURN(Frame* frame){
     popStack(frame->JVMSTACK);
-    printf("discarded\n");
     // current frame is discarded
     return NULL;
 }
@@ -393,11 +405,17 @@ void* OPCODE_INVOKESTATIC(Frame* frame){
 
     newFrame.localVariables = malloc (sizeof(LocalVariable) * newFrame.code->max_locals);
     if (method->access_flags != M_ACC_NATIVE){
-        // todo: parse method descriptor        
+        // On successful resolution of the method, the class or interface that declared the resolved method is initialized (§5.5) if that class or interface has not already been initialized. 
+        int numArgs = getNumArgs(frame->classRef, methodOrInterfaceRef);
+        for (int argId = numArgs-1; argId >= 0; argId--){
+            uint64_t arg = *(uint64_t*) popStack(frame->operandStack);
+            newFrame.localVariables[argId] = arg;
+        }
+
     }
 
-    Stack operandStack = initStack(newFrame.code->max_stack, TYPE_OPERANDSTACK);
-    newFrame.operandStack = &operandStack;
+    newFrame.operandStack = malloc (sizeof(Stack));
+    *newFrame.operandStack = initStack(newFrame.code->max_stack, TYPE_OPERANDSTACK);
 
     newFrame.pc = 0;
     newFrame.classRef = frame->classRef;
@@ -412,19 +430,43 @@ OPCODE** initOpcodes(){
     // jumptable
     OPCODE** opcodes = malloc (sizeof(OPCODE*) * 255); // leak
     opcodes[0x10] = OPCODE_BIPUSH;
-    opcodes[0x1a] = OPCODE_ILOAD_0;
-    opcodes[0x1b] = OPCODE_ILOAD_1;
+    opcodes[0x12] = OPCODE_LDC;
+
+    opcodes[0x1a] = OPCODE_NLOAD_0;
+    opcodes[0x1b] = OPCODE_NLOAD_1;
+    opcodes[0x1c] = OPCODE_NLOAD_2;
+    opcodes[0x1d] = OPCODE_NLOAD_3;
 
     opcodes[0x2] = OPCODE_ICONST_M1;
     opcodes[0x3] = OPCODE_ICONST_0;
+
+    opcodes[0x36] = OPCODE_NSTORE;
+
+    opcodes[0x3b] = OPCODE_NSTORE_0;
+    opcodes[0x3c] = OPCODE_NSTORE_1;
+    opcodes[0x3d] = OPCODE_NSTORE_2;
+    opcodes[0x3e] = OPCODE_NSTORE_3;
+
     opcodes[0x4] = OPCODE_ICONST_1;
     opcodes[0x5] = OPCODE_ICONST_2;
+
+    opcodes[0x57] = OPCODE_POP;
+
     opcodes[0x6] = OPCODE_ICONST_3;
     opcodes[0x7] = OPCODE_ICONST_4;
     opcodes[0x8] = OPCODE_ICONST_5;
 
+    opcodes[0x84] = OPCODE_IINC;
+
     opcodes[0x2a] = OPCODE_NLOAD_0;
     opcodes[0x2b] = OPCODE_NLOAD_1;
+
+    opcodes[0x9] = OPCODE_ICONST_0;
+    opcodes[0xa] = OPCODE_ICONST_1;
+
+    opcodes[0xa2] = OPCODE_IF_ICMPGE;
+    opcodes[0xa7] = OPCODE_GOTO;
+    
 
     opcodes[0xb] = OPCODE_DCONST_0;
     opcodes[0xc] = OPCODE_DCONST_1;

@@ -5,6 +5,10 @@ public class returnTest {
     }
 
     public static int topla(int a, int b){
-        return a+b;
+        int var = 0;
+        for (int i=0; i<10000000; i++){
+            var += a+b;
+        }
+        return var;
     }
 }

@@ -28,6 +28,7 @@ typedef struct ClassFile{
 
 ClassFile classFromFile(unsigned char* filename);
 ClassFile* getClassFromName(CONSTANT_Utf8_info utf8, Machine machine);
+int getNumArgs(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef);
 char isUtf8Equal(CONSTANT_Utf8_info c1, CONSTANT_Utf8_info c2);
 method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef);
 char checkFormat(ClassFile cf);

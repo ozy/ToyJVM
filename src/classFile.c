@@ -113,6 +113,29 @@ char isUtf8Equal(CONSTANT_Utf8_info c1, CONSTANT_Utf8_info c2){
     return !strncmp(c1.bytes,c2.bytes,c1.length);
 }
 
+int getNumArgs(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef){
+    CONSTANT_NameAndType_info* nameAndType = &cf->constant_pool[methodOrInterfaceRef.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info descriptor_utf8 = cf->constant_pool[nameAndType->descriptor_index-1].info.utf8_info;
+    int numArgs = 0;
+    for (int index=0; index < descriptor_utf8.length; index++){
+        switch (descriptor_utf8.bytes[index]){
+            case 'L':
+                for (; descriptor_utf8.bytes[index] != ';'; index++){
+                }
+                numArgs++;
+                break;
+            case '(':
+                break;
+            case ')':
+                return numArgs;
+            default:
+                numArgs++;
+                break;
+        }
+    }
+    return numArgs;
+}
+
 ClassFile* getClassFromName(CONSTANT_Utf8_info utf8, Machine machine){
     // todo BTree
     for (int classId=0; classId<machine.numClasses; classId++){
@@ -127,7 +150,7 @@ ClassFile* getClassFromName(CONSTANT_Utf8_info utf8, Machine machine){
 method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef){
     CONSTANT_NameAndType_info* nameAndType = &cf->constant_pool[methodOrInterfaceRef.name_and_type_index-1].info.nameAndType_info;
     CONSTANT_Utf8_info name_utf8 = cf->constant_pool[nameAndType->name_index-1].info.utf8_info;
-    CONSTANT_Utf8_info descriptor_utf8 = cf->constant_pool[nameAndType->descriptor_index-1].info.utf8_info;
+    CONSTANT_Utf8_info descriptor_utf8 = cf->constant_pool[nameAndType->descriptor_index-1].info.utf8_info; // clear later
     printf ("Invoked Method Name: %.*s, %.*s\n",name_utf8.length,name_utf8.bytes, descriptor_utf8.length,descriptor_utf8.bytes);
     for (int methodId=0; methodId < cf->methods_count; methodId++){
         CONSTANT_Utf8_info classMethodName_utf8 = cf->constant_pool[cf->methods[methodId].name_index-1].info.utf8_info; // todo possibly optimize this func

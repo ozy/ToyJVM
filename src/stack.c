@@ -47,5 +47,5 @@ void* popStack(Stack* stack){
 }
 
 void* peekStack(Stack* stack){
-    return (stack->stack + stack->top - stack->stackType);
+    return (stack->top > 0)?(stack->stack + stack->top - stack->stackType):(NULL);
 }
