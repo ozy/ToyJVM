@@ -6,7 +6,7 @@ public class returnTest {
 
     public static int topla(int a, int b){
         int var = 0;
-        for (int i=0; i<10000000; i++){
+        for (int i=0; i<5; i++){
             var += a+b;
         }
         return var;

@@ -2,7 +2,7 @@
 #include "frame.h"
 #include <inttypes.h>
 #include <stdlib.h>
-
+#include "javaClass.h"
 Stack initStack(uint64_t numItems, StackType stackType){ // size is in operands
     //The maximum depth of the operand stack of a frame is determined at compile-time and 
     //is supplied along with the code for the method associated with the frame
@@ -27,15 +27,17 @@ void pushStack(void* val, Stack* stack){
         stack->top += stack->stackType;
     }else{
         // todo stackoverflow err
+        printf("StackOverFlow Error\n");
     }
 }
 
 void* popStack(Stack* stack){
-    if (stack->top - stack->stackType >= 0){
+    if ((int64_t)stack->top - stack->stackType >= 0){
         void* val;
         stack->top -= stack->stackType;
         if (stack->stackType == TYPE_JVMSTACK){
             val = (Frame*)(&stack->stack[stack->top]);
+            printf("popped\n");
         }else if(stack->stackType == TYPE_OPERANDSTACK){
             val = (uint64_t*)(&stack->stack[stack->top]);
         }
@@ -47,5 +49,5 @@ void* popStack(Stack* stack){
 }
 
 void* peekStack(Stack* stack){
-    return (stack->top > 0)?(stack->stack + stack->top - stack->stackType):(NULL);
+    return (stack->top > 0)?(Stack*)(stack->stack + stack->top - stack->stackType):(NULL);
 }

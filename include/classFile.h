@@ -6,6 +6,7 @@
 #include "field.h"
 #include "method.h"
 
+typedef struct field_info field_info;
 
 typedef struct ClassFile{
     uint32_t       magic;
@@ -24,14 +25,24 @@ typedef struct ClassFile{
     method_info*   methods;
     uint16_t       attributes_count;
     attribute_info* attributes;
+    uint8_t initalized;
 }ClassFile;
 
-ClassFile classFromFile(unsigned char* filename);
-ClassFile* getClassFromName(CONSTANT_Utf8_info utf8, Machine machine);
+ClassFile classFromFile(const char* filename);
+
+ClassFile* getClassFromUtf8(CONSTANT_Utf8_info className_utf8, Machine* machine);
+ClassFile* getClassFromName(const char* className, Machine* machine);
+
 int getNumArgs(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef);
-char isUtf8Equal(CONSTANT_Utf8_info c1, CONSTANT_Utf8_info c2);
-method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef);
-char checkFormat(ClassFile cf);
+
+int isUtf8Equal(CONSTANT_Utf8_info s1, CONSTANT_Utf8_info s2);
+int isUtf8EqualsToString(CONSTANT_Utf8_info s1, const char* s2);
+
+void initClass(ClassFile* cf, Frame* frame);
+
+method_info* getMethodByName(ClassFile* cf, const char* name, const char* desc);
+method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Utf8_info name_utf8, CONSTANT_Utf8_info descriptor_utf8);
+int checkFormat(ClassFile* cf);
 /*
 Returns 1 if the class file passes the test. Anything else if not.
 

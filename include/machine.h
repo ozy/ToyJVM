@@ -8,6 +8,7 @@ void* executeCode(Stack* JVMSTACK, OPCODE** opcodes);
 typedef struct Machine{
     struct ClassFile* classFiles;
     uint64_t numClasses;
+    Stack* JVMSTACK;
 }Machine;
 
 

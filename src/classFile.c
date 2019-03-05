@@ -7,13 +7,14 @@
 #include "constantPool.h"
 #include "string.h"
 
-ClassFile classFromFile(unsigned char* filename){
+ClassFile classFromFile(const char* filename){
     FILE *fd;
     fd = fopen(filename, "r");
 
     if (fd == NULL){
-       perror("Error while opening the file.\n");
-       exit(EXIT_FAILURE);
+        printf("File: %s\n",filename);
+        perror("Error while opening the file.\n");
+        exit(EXIT_FAILURE);
     }
 
     /*
@@ -105,12 +106,20 @@ ClassFile classFromFile(unsigned char* filename){
         classFile.attributes[attributeCount] = getAttribute_Info(fd); // leak
     }
 
+    classFile.initalized = 0; // false
     return classFile;
 }
-char isUtf8Equal(CONSTANT_Utf8_info c1, CONSTANT_Utf8_info c2){
-    if (c1.length != c2.length)
+
+int isUtf8EqualsToString(CONSTANT_Utf8_info s1, const char* s2){
+    if (s1.length != strlen(s2))
+        return 0;
+    return !strncmp(s1.bytes,s2,s1.length);    
+}
+
+int isUtf8Equal(CONSTANT_Utf8_info s1, CONSTANT_Utf8_info s2){
+    if (s1.length != s2.length)
         return 0; // false
-    return !strncmp(c1.bytes,c2.bytes,c1.length);
+    return !strncmp(s1.bytes,s2.bytes,s1.length);
 }
 
 int getNumArgs(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef){
@@ -119,6 +128,7 @@ int getNumArgs(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef){
     int numArgs = 0;
     for (int index=0; index < descriptor_utf8.length; index++){
         switch (descriptor_utf8.bytes[index]){
+            // todo check for array types
             case 'L':
                 for (; descriptor_utf8.bytes[index] != ';'; index++){
                 }
@@ -136,68 +146,116 @@ int getNumArgs(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef){
     return numArgs;
 }
 
-ClassFile* getClassFromName(CONSTANT_Utf8_info utf8, Machine machine){
+ClassFile* getClassFromUtf8(CONSTANT_Utf8_info className_utf8, Machine* machine){
+    // to C string
+    char className[className_utf8.length+1];
+    memcpy(&className,className_utf8.bytes,className_utf8.length);
+    className[className_utf8.length] = '\0';
+
+    return getClassFromName(className, machine);
+}
+
+ClassFile* getClassFromName(const char* className, Machine* machine){
     // todo BTree
-    for (int classId=0; classId<machine.numClasses; classId++){
-        ClassFile* class = &machine.classFiles[classId];
-        if (isUtf8Equal(class->constant_pool[class->this_class-1].info.utf8_info, utf8)){
+    for (int classId=0; classId<machine->numClasses; classId++){
+        ClassFile* class = &machine->classFiles[classId];
+        CONSTANT_Class_info classInfo = class->constant_pool[class->this_class - 1].info.class_info;
+        CONSTANT_Utf8_info _className = class->constant_pool[classInfo.name_index-1].info.utf8_info;
+        if (isUtf8EqualsToString(_className, className)){
             return class;
+        }
+        //printf("checked a class, id: %d : %.*s\n",class->this_class,class->constant_pool[class->this_class-1].info.utf8_info.length,class->constant_pool[class->this_class-1].info.utf8_info.bytes);
+        // todo
+        
+    }
+    // create if not exists
+    char buf[strlen(className)+strlen(".class")+1];
+    strcpy(buf, className);
+    strcat(buf, ".class");
+    machine->classFiles[machine->numClasses++] = classFromFile(buf);
+    return &machine->classFiles[machine->numClasses-1];
+}
+
+method_info* getMethodByName(ClassFile* cf, const char* name, const char* desc){
+    for (int methodId=0; methodId < cf->methods_count; methodId++){
+        CONSTANT_Utf8_info classMethodName_utf8 = cf->constant_pool[cf->methods[methodId].name_index-1].info.utf8_info; // todo possibly optimize this func
+        CONSTANT_Utf8_info classMethodDesc_utf8 = cf->constant_pool[cf->methods[methodId].descriptor_index-1].info.utf8_info; // todo possibly optimize this func
+        if (isUtf8EqualsToString(classMethodName_utf8, name) && isUtf8EqualsToString(classMethodDesc_utf8, desc)){
+            printf ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes);
+            return &cf->methods[methodId];
         }
     }
     return NULL;
 }
 
-method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Ref_info methodOrInterfaceRef){
-    CONSTANT_NameAndType_info* nameAndType = &cf->constant_pool[methodOrInterfaceRef.name_and_type_index-1].info.nameAndType_info;
-    CONSTANT_Utf8_info name_utf8 = cf->constant_pool[nameAndType->name_index-1].info.utf8_info;
-    CONSTANT_Utf8_info descriptor_utf8 = cf->constant_pool[nameAndType->descriptor_index-1].info.utf8_info; // clear later
+void initClass(ClassFile* cf, Frame* frame){
+    if (!cf->initalized){
+        method_info* method = getMethodByName(cf, "<clinit>","()V");
+        //printf ("Method's Class Name: %.*s\n",name_utf8.length,name_utf8.bytes);
+        Code_attribute code;
+        if (method != NULL){ 
+            code = getCode_AttributeFromAttribute_info(method->attributes[0]);
+            //method->attributes[0]
+            cf->initalized = 1;
+            Frame newFrame = createNewFrame(code, cf, frame->machine);
+            pushStack(&newFrame, frame->machine->JVMSTACK);
+            frame->pc++;
+        }else{
+            // todo method not found
+            printf("method not found \n");
+        }
+    }
+}
+
+method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Utf8_info name_utf8, CONSTANT_Utf8_info descriptor_utf8){
     printf ("Invoked Method Name: %.*s, %.*s\n",name_utf8.length,name_utf8.bytes, descriptor_utf8.length,descriptor_utf8.bytes);
     for (int methodId=0; methodId < cf->methods_count; methodId++){
         CONSTANT_Utf8_info classMethodName_utf8 = cf->constant_pool[cf->methods[methodId].name_index-1].info.utf8_info; // todo possibly optimize this func
-        if (isUtf8Equal(name_utf8, classMethodName_utf8)){
-            //printf ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes);
+        CONSTANT_Utf8_info classMethodDesc_utf8 = cf->constant_pool[cf->methods[methodId].descriptor_index-1].info.utf8_info; // todo possibly optimize this func
+        if (isUtf8Equal(name_utf8, classMethodName_utf8) && isUtf8Equal(descriptor_utf8, classMethodDesc_utf8)){
+            printf ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes);
             return &cf->methods[methodId];
         }
     }
     return NULL; // method is not in this class
 }
 
-char checkFormat(ClassFile cf){
+int checkFormat(ClassFile* cf){
     //1
-    if (cf.magic != 0xCAFEBABE)
+    if (cf->magic != 0xCAFEBABE)
         return 0;
     
     //2
-    for (int attributeCount=0; attributeCount<cf.attributes_count; attributeCount++){
-        uint16_t utf8Index = cf.attributes[attributeCount].attribute_name_index;
-        if (cf.constant_pool[utf8Index-1].tag != CONSTANT_Utf8){ // constant pool starts from 1 (lol, bcz oracle said)
+    for (int attributeCount=0; attributeCount<cf->attributes_count; attributeCount++){
+        uint16_t utf8Index = cf->attributes[attributeCount].attribute_name_index;
+        if (cf->constant_pool[utf8Index-1].tag != CONSTANT_Utf8){ // constant pool starts from 1 (lol, bcz oracle said)
             //The constant_pool entry at attribute_name_index must be a CONSTANT_Utf8_info structure
             return 0;
         }
     }
     //4
-    for (int constantPoolCount=0; constantPoolCount < cf.constant_pool_count-1; constantPoolCount++){
-        switch (cf.constant_pool[constantPoolCount].tag){
+    for (int constantPoolCount=0; constantPoolCount < cf->constant_pool_count-1; constantPoolCount++){
+        switch (cf->constant_pool[constantPoolCount].tag){
             case CONSTANT_Class:; // empty statement ;
-                uint16_t utf8Index = cf.constant_pool[constantPoolCount].info.class_info.name_index;
-                if (cf.constant_pool[utf8Index-1].tag != CONSTANT_Utf8)
+                uint16_t utf8Index = cf->constant_pool[constantPoolCount].info.class_info.name_index;
+                if (cf->constant_pool[utf8Index-1].tag != CONSTANT_Utf8)
                     return 0;
                 break;
             case CONSTANT_Fieldref:;
                 // The class_index item of a CONSTANT_Fieldref_info structure may be either a class type or an interface type. 
-                CONSTANT_Ref_info fieldref = cf.constant_pool[constantPoolCount].info.ref_info;
-                if (!(cf.constant_pool[fieldref.class_index-1].tag == CONSTANT_Class || cf.constant_pool[fieldref.class_index-1].tag == CONSTANT_InterfaceMethodref))
+                CONSTANT_Ref_info fieldref = cf->constant_pool[constantPoolCount].info.ref_info;
+                if (!(cf->constant_pool[fieldref.class_index-1].tag == CONSTANT_Class || cf->constant_pool[fieldref.class_index-1].tag == CONSTANT_InterfaceMethodref))
                     return 0;
                 break;
             case CONSTANT_InterfaceMethodref:;
-                CONSTANT_Ref_info interfaceMethodref = cf.constant_pool[constantPoolCount].info.ref_info;
-                if (cf.constant_pool[interfaceMethodref.class_index-1].tag != CONSTANT_InterfaceMethodref)
+                CONSTANT_Ref_info interfaceMethodref = cf->constant_pool[constantPoolCount].info.ref_info;
+                if (cf->constant_pool[interfaceMethodref.class_index-1].tag != CONSTANT_InterfaceMethodref)
                     return 0;
                 break;
             case CONSTANT_Methodref:;
                 // The class_index item of a CONSTANT_Fieldref_info structure may be either a class type or an interface type. 
-                CONSTANT_Ref_info methodref = cf.constant_pool[constantPoolCount].info.ref_info;
-                if (cf.constant_pool[methodref.class_index-1].tag != CONSTANT_Class)
+                CONSTANT_Ref_info methodref = cf->constant_pool[constantPoolCount].info.ref_info;
+                if (cf->constant_pool[methodref.class_index-1].tag != CONSTANT_Class)
                     return 0;
                 break;
             default:

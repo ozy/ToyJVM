@@ -2,6 +2,9 @@
 #include <stdio.h>
 #include <endian.h>
 #include <stdlib.h>
+#include "classFile.h"
+#include "constantPool.h"
+#include "javaClass.h"
 
 field_info getField_Info(FILE* fd){
     field_info field;
@@ -21,7 +24,37 @@ field_info getField_Info(FILE* fd){
     for (int attributeCount=0; attributeCount<field.attributes_count; attributeCount++){
         field.attributes[attributeCount] = getAttribute_Info(fd); // leak
     }
-
+    field.value = 0;
     return field;
 
+}
+
+void putField(JavaClass* instance, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc, uint64_t val){
+    field_info* field = getField(instance, fieldName, fieldDesc);
+    field->value = val;
+}
+
+
+field_info* getField(JavaClass* jc, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc){
+    for (uint16_t fieldId=0; fieldId<jc->classFile->fields_count; fieldId++){
+        field_info* field = &jc->fields[fieldId];
+        CONSTANT_Utf8_info _fieldName = jc->classFile->constant_pool[field->name_index-1].info.utf8_info;
+        CONSTANT_Utf8_info _fieldDesc = jc->classFile->constant_pool[field->descriptor_index-1].info.utf8_info;
+        if (isUtf8Equal(fieldName,_fieldName) && isUtf8Equal(fieldDesc,_fieldDesc)){
+            return field;
+        }
+    }
+    return NULL;
+}
+
+field_info* getStaticField(ClassFile* cf, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc){
+    for (uint16_t fieldId=0; fieldId<cf->fields_count; fieldId++){
+        field_info* field = &cf->fields[fieldId];
+        CONSTANT_Utf8_info _fieldName = cf->constant_pool[field->name_index-1].info.utf8_info;
+        CONSTANT_Utf8_info _fieldDesc = cf->constant_pool[field->descriptor_index-1].info.utf8_info;
+        if (isUtf8Equal(fieldName,_fieldName) && isUtf8Equal(fieldDesc,_fieldDesc)){
+            return field;
+        }
+    }
+    return NULL;
 }

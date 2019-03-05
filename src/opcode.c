@@ -6,6 +6,8 @@
 #include "constantPool.h"
 #include "frame.h"
 #include "classFile.h"
+#include <string.h>
+#include "javaClass.h"
 
 uint8_t read1Byte(Frame* frame){
     return *(uint8_t*)&frame->code->code[++frame->pc]; // to get the first arg. of the opcode
@@ -144,6 +146,7 @@ void* OPCODE_NLOAD(Frame* frame){ // N represents I,L or D
 }
 void* OPCODE_NLOAD_0(Frame* frame){
     pushStack(&frame->localVariables[0], frame->operandStack);
+    printf("aload first var is %p\n",(JavaClass*)frame->localVariables[0]);
 	return NULL;
 }
 void* OPCODE_NLOAD_1(Frame* frame){
@@ -342,7 +345,8 @@ void* OPCODE_IF_ICMPGE(Frame* frame){
     if (val1 >= val2){
         frame->pc += offset - 3;
         // -1 because the main loop will increase 1 after this opcode to
-        // get the next opcode
+        // get the next opcode. Extra -2 because we moved 2 more bytes while
+        // reading the offset
     }
 	return NULL;
 }
@@ -358,70 +362,254 @@ void* OPCODE_GOTO(Frame* frame){
     uint16_t offset = read2Bytes(frame); // branch offset
     frame->pc += *(int16_t*)&offset - 3;
     // -1 because the main loop will increase 1 after this opcode to
-    // get the next opcode
+    // get the next opcode Extra -2 because we moved 2 more bytes while
+    // reading the offset
+    return NULL;
+}
+
+void* OPCODE_GETSTATIC(Frame* frame){
+    uint16_t index = read2Bytes(frame);
+    CONSTANT_Ref_info fieldRefInfo = frame->classRef->constant_pool[index-1].info.ref_info;
+
+    CONSTANT_NameAndType_info nameAndType = frame->classRef->constant_pool[fieldRefInfo.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info name_utf8 = frame->classRef->constant_pool[nameAndType.name_index-1].info.utf8_info;
+    CONSTANT_Utf8_info desc_utf8 = frame->classRef->constant_pool[nameAndType.descriptor_index-1].info.utf8_info;
+
+    CONSTANT_Class_info class = frame->classRef->constant_pool[fieldRefInfo.class_index -1].info.class_info;
+    CONSTANT_Utf8_info className_utf8 = frame->classRef->constant_pool[class.name_index-1].info.utf8_info;
+    
+    ClassFile* cf = getClassFromUtf8(className_utf8,frame->machine);
+    initClass(cf, frame);
+    field_info* field = getStaticField(cf, name_utf8, desc_utf8);
+    pushStack(&field->value, frame->operandStack);
+    return NULL;
+}
+
+void* OPCODE_NEW(Frame* frame){
+    uint16_t index = read2Bytes(frame);
+    CONSTANT_Class_info class = frame->classRef->constant_pool[index-1].info.class_info; // class or interface ref info
+
+    CONSTANT_Utf8_info className_utf8 = frame->classRef->constant_pool[class.name_index-1].info.utf8_info;
+    ClassFile* cf = getClassFromUtf8(className_utf8,frame->machine);
+
+    JavaClass* newObject = malloc(sizeof(JavaClass));
+    newObject->classFile = cf;
+    initClass(cf, frame);
+    initInstanceFields(newObject);
+    uint64_t objectRef = (uint64_t)newObject;
+    pushStack(&objectRef, frame->operandStack);
+    return NULL;
+}
+
+void* OPCODE_PUTFIELD(Frame* frame){
+    uint16_t index = read2Bytes(frame);
+    CONSTANT_Ref_info fieldRefInfo = frame->classRef->constant_pool[index-1].info.ref_info;
+
+    CONSTANT_NameAndType_info nameAndType = frame->classRef->constant_pool[fieldRefInfo.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info name_utf8 = frame->classRef->constant_pool[nameAndType.name_index-1].info.utf8_info;
+    CONSTANT_Utf8_info desc_utf8 = frame->classRef->constant_pool[nameAndType.descriptor_index-1].info.utf8_info;
+
+    uint64_t val = *(uint64_t*)popStack(frame->operandStack);
+    JavaClass* obj = (JavaClass*)*(uint64_t*)popStack(frame->operandStack);
+
+    printf("%x, put val is %d, objRef is %p \n", obj->classFile->magic, val, obj);
+    putField(obj, name_utf8, desc_utf8, val);
+
     return NULL;
 }
 
 void* OPCODE_IRETURN(Frame* frame){
     uint64_t* val = malloc(sizeof(val));
     *val = *(uint64_t*)popStack(frame->operandStack);
+    printf("iret val : %d, stackTop: %d\n", *val, frame->operandStack->top);
     return val;
 }
 void* OPCODE_RETURN(Frame* frame){
-    popStack(frame->JVMSTACK);
+    frame->pc = frame->code->code_length;
     // current frame is discarded
     return NULL;
 }
+
+void* OPCODE_GETFIELD(Frame* frame){
+    JavaClass* obj = (JavaClass*)*(uint64_t*)popStack(frame->operandStack); 
+    uint16_t index = read2Bytes(frame);
+    CONSTANT_Ref_info fieldRef = frame->classRef->constant_pool[index-1].info.ref_info;
+
+    CONSTANT_NameAndType_info* nameAndType = &frame->classRef->constant_pool[fieldRef.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info name_utf8 = frame->classRef->constant_pool[nameAndType->name_index-1].info.utf8_info;
+    CONSTANT_Utf8_info desc_utf8 = frame->classRef->constant_pool[nameAndType->descriptor_index-1].info.utf8_info;
+
+    // different type fields can have the same name in bytecode but not in java.
+    field_info* field = getField(obj,name_utf8, desc_utf8);
+    pushStack(&field->value, frame->operandStack);
+    return NULL;
+}
+
+void* OPCODE_INVOKEVIRTUAL(Frame* frame){
+    uint16_t index = read2Bytes(frame);
+    if (!(frame->classRef->constant_pool[index-1].tag == CONSTANT_Methodref || frame->classRef->constant_pool[index-1].tag == CONSTANT_InterfaceMethodref)){
+        printf("invoked method ref is invalid, index is %d\n",index);
+    }
+    CONSTANT_Ref_info methodOrInterfaceRef = frame->classRef->constant_pool[index-1].info.ref_info;
+    
+    CONSTANT_NameAndType_info* nameAndType = &frame->classRef->constant_pool[methodOrInterfaceRef.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info name_utf8 = frame->classRef->constant_pool[nameAndType->name_index-1].info.utf8_info;
+    CONSTANT_Utf8_info desc_utf8 = frame->classRef->constant_pool[nameAndType->descriptor_index-1].info.utf8_info;
+    printf ("Method's Name: %.*s\n",name_utf8.length,name_utf8.bytes);
+
+    CONSTANT_Class_info methodClass = frame->classRef->constant_pool[methodOrInterfaceRef.class_index - 1].info.class_info;
+    CONSTANT_Utf8_info className_utf8 = frame->classRef->constant_pool[methodClass.name_index-1].info.utf8_info;
+    printf ("Class's Name: %.*s\n",className_utf8.length,className_utf8.bytes);
+    ClassFile* cf = getClassFromUtf8(className_utf8, frame->machine);
+
+
+    method_info* method = NULL;
+
+    if (method->access_flags != M_ACC_NATIVE){
+        // todo: error? 
+    }
+
+    int numArgs = getNumArgs(frame->classRef, methodOrInterfaceRef) + 1; // +1 for ObjectRef which will be at localVars[0]
+    uint64_t tempLocalVars[numArgs];
+    for (int argId = numArgs-1; argId >= 0; argId--){
+        tempLocalVars[argId] = *(uint64_t*) popStack(frame->operandStack);
+    }
+
+    ////  Let C be the class of objectref. The actual method to be invoked
+    //// is selected by the following lookup procedure:
+    
+    // If C contains a declaration for an instance method m that overrides (§5.4.5)
+    // the resolved method, then m is the method to be invoked.
+
+    method_info* mPointer = canClassHandleMethod(((JavaClass*)tempLocalVars[0])->classFile, name_utf8, desc_utf8);
+
+    if (mPointer){
+        method = (mPointer)?(mPointer):method;
+        printf("first overrider runned\n");
+    }else{
+
+        // Otherwise, if C has a superclass, a search for a declaration of an instance
+        // method that overrides the resolved method is performed, starting with the
+        // direct superclass of C and continuing with the direct superclass of that
+        // class, and so forth, until an overriding method is found or no further
+        // superclasses exist. If an overriding method is found, it is the method to be invoked. 
+        ClassFile* superClass = ((JavaClass*)tempLocalVars[0])->classFile;
+        mPointer = NULL;
+        while (superClass->super_class != 0){
+            CONSTANT_Class_info superClassInfo = superClass -> constant_pool [superClass->super_class-1].info.class_info;
+            CONSTANT_Utf8_info superClassName = superClass -> constant_pool [superClassInfo.name_index-1].info.utf8_info;
+            superClass = getClassFromUtf8 (superClassName, frame->machine);
+            mPointer = canClassHandleMethod(superClass, name_utf8, desc_utf8);
+            if (mPointer){
+                method = (mPointer)?(mPointer):method;
+                printf("found in superclass runned\n");
+                break;
+            }
+        }
+        if (mPointer == NULL){
+            printf("fallBack runned\n");
+            mPointer = canClassHandleMethod(cf, name_utf8, desc_utf8);
+            method = (mPointer)?(mPointer):method;
+        }
+    }
+    Code_attribute code;
+    if (method != NULL){
+        code = getCode_AttributeFromAttribute_info(method->attributes[0]);
+    }else{
+        printf("method not found \n");
+    }
+    Frame newFrame = createNewFrame(code, cf, frame->machine);
+
+    memcpy(newFrame.localVariables, tempLocalVars, numArgs * sizeof(tempLocalVars[0]));
+
+    pushStack(&newFrame, frame->machine->JVMSTACK);
+
+    frame->pc++;
+    return NULL;
+}
+
+void* OPCODE_INVOKESPECIAL(Frame* frame){
+    uint16_t index = read2Bytes(frame);
+    if (!(frame->classRef->constant_pool[index-1].tag == CONSTANT_Methodref || frame->classRef->constant_pool[index-1].tag == CONSTANT_InterfaceMethodref)){
+        printf("invoked method ref is invalid, index is %d\n",index);
+    }
+    CONSTANT_Ref_info methodOrInterfaceRef = frame->classRef->constant_pool[index-1].info.ref_info;
+    
+    CONSTANT_NameAndType_info* nameAndType = &frame->classRef->constant_pool[methodOrInterfaceRef.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info name_utf8 = frame->classRef->constant_pool[nameAndType->name_index-1].info.utf8_info;
+    CONSTANT_Utf8_info desc_utf8 = frame->classRef->constant_pool[nameAndType->descriptor_index-1].info.utf8_info;
+    printf ("Method's Name: %.*s\n",name_utf8.length,name_utf8.bytes);
+
+    CONSTANT_Class_info methodClass = frame->classRef->constant_pool[methodOrInterfaceRef.class_index - 1].info.class_info;
+    CONSTANT_Utf8_info className_utf8 = frame->classRef->constant_pool[methodClass.name_index-1].info.utf8_info;
+    printf ("Class's Name: %.*s\n",className_utf8.length,className_utf8.bytes);
+    ClassFile* cf = getClassFromUtf8(className_utf8, frame->machine);
+
+    method_info* method = canClassHandleMethod(cf, name_utf8, desc_utf8);
+    Code_attribute code;
+    if (method != NULL){
+        code = getCode_AttributeFromAttribute_info(method->attributes[0]);
+    }else{
+        printf("method not found \n");
+    }
+    Frame newFrame = createNewFrame(code, cf, frame->machine);
+
+    if (method->access_flags != M_ACC_NATIVE){
+        int numArgs = getNumArgs(frame->classRef, methodOrInterfaceRef) + 1; // +1 for ObjectRef which will be at localVars[0]
+        for (int argId = numArgs-1; argId >= 0; argId--){
+            newFrame.localVariables[argId] = *(uint64_t*) popStack(frame->operandStack);
+        }
+
+    }
+
+    pushStack(&newFrame, frame->machine->JVMSTACK);
+
+    frame->pc++;
+    return NULL;
+}
+
 void* OPCODE_INVOKESTATIC(Frame* frame){
-    uint16_t index = read2Bytes(frame); // normally indexes pointing into 
-    // the constant pool are index - 1 in reality. But in our case, the
-    // constant pool and the run-time constant pool are the same except
-    // run time constant pool takes indexes as is but the normal constant
-    // pool takes indexes starting from 1. The extra +1 is because
-    Frame newFrame;
+    uint16_t index = read2Bytes(frame);
 
     if (!(frame->classRef->constant_pool[index-1].tag == CONSTANT_Methodref || frame->classRef->constant_pool[index-1].tag == CONSTANT_InterfaceMethodref)){
         // index must be a symbolic reference to a method or an interface method
         // if the resolved method is an instance method, the invokestatic instruction throws an IncompatibleClassChangeError. 
-        printf("invoked method ref is invalid index is %d\n",index);
+        printf("invoked method ref is invalid, index is %d\n",index);
     }
     CONSTANT_Ref_info methodOrInterfaceRef = frame->classRef->constant_pool[index-1].info.ref_info;
     //printf ("Method's Class Name: %.*s\n",name_utf8.length,name_utf8.bytes);
-    method_info* method = canClassHandleMethod(frame->classRef, methodOrInterfaceRef);
 
+    CONSTANT_Class_info methodClass = frame->classRef->constant_pool[methodOrInterfaceRef.class_index - 1].info.class_info;
+    CONSTANT_Utf8_info className_utf8 = frame->classRef->constant_pool[methodClass.name_index-1].info.utf8_info;
+    printf ("Class's Name: %.*s\n",className_utf8.length,className_utf8.bytes);
+    ClassFile* cf = getClassFromUtf8(className_utf8, frame->machine);
+
+    CONSTANT_NameAndType_info* nameAndType = &frame->classRef->constant_pool[methodOrInterfaceRef.name_and_type_index-1].info.nameAndType_info;
+    CONSTANT_Utf8_info name_utf8 = frame->classRef->constant_pool[nameAndType->name_index-1].info.utf8_info;
+    CONSTANT_Utf8_info desc_utf8 = frame->classRef->constant_pool[nameAndType->descriptor_index-1].info.utf8_info;
+
+    method_info* method = canClassHandleMethod(cf, name_utf8, desc_utf8);
+    Code_attribute code;
     if (method != NULL){
-        newFrame.code = malloc (sizeof(Code_attribute));
-        *newFrame.code = getCode_AttributeFromAttribute_info(method->attributes[0]);
+        code = getCode_AttributeFromAttribute_info(method->attributes[0]);
         //method->attributes[0]
     }else{
         // todo method not found
         printf("method not found \n");
     }
-    //CONSTANT_Utf8_info utf8 = frame->classRef->constant_pool[method->name_index-1].info.utf8_info;
-    //printf ("Code Name: %.*s\n",utf8.length,utf8.bytes);
-    //printf("max_stack : %d\n",attribute->max_stack);
-    //printf("max_locals : %d\n",attribute->max_locals);
-    //printf("code_lenght : %d\n",attribute->code_length);
+    Frame newFrame = createNewFrame(code, cf, frame->machine);
 
-    newFrame.localVariables = malloc (sizeof(LocalVariable) * newFrame.code->max_locals);
+
     if (method->access_flags != M_ACC_NATIVE){
         // On successful resolution of the method, the class or interface that declared the resolved method is initialized (§5.5) if that class or interface has not already been initialized. 
         int numArgs = getNumArgs(frame->classRef, methodOrInterfaceRef);
         for (int argId = numArgs-1; argId >= 0; argId--){
-            uint64_t arg = *(uint64_t*) popStack(frame->operandStack);
-            newFrame.localVariables[argId] = arg;
+            newFrame.localVariables[argId] = *(uint64_t*) popStack(frame->operandStack);
         }
 
     }
 
-    newFrame.operandStack = malloc (sizeof(Stack));
-    *newFrame.operandStack = initStack(newFrame.code->max_stack, TYPE_OPERANDSTACK);
-
-    newFrame.pc = 0;
-    newFrame.classRef = frame->classRef;
-    newFrame.JVMSTACK = frame->JVMSTACK;
-
-    pushStack(&newFrame, frame->JVMSTACK);
+    pushStack(&newFrame, frame->machine->JVMSTACK);
 
     frame->pc++;
     return NULL;
@@ -430,6 +618,8 @@ OPCODE** initOpcodes(){
     // jumptable
     OPCODE** opcodes = malloc (sizeof(OPCODE*) * 255); // leak
     opcodes[0x10] = OPCODE_BIPUSH;
+    opcodes[0x11] = OPCODE_SIPUSH;
+    
     opcodes[0x12] = OPCODE_LDC;
 
     opcodes[0x1a] = OPCODE_NLOAD_0;
@@ -447,10 +637,17 @@ OPCODE** initOpcodes(){
     opcodes[0x3d] = OPCODE_NSTORE_2;
     opcodes[0x3e] = OPCODE_NSTORE_3;
 
+    opcodes[0x4b] = OPCODE_NSTORE_0;
+    opcodes[0x4c] = OPCODE_NSTORE_1;
+    opcodes[0x4d] = OPCODE_NSTORE_2;
+    opcodes[0x4e] = OPCODE_NSTORE_3;
+
     opcodes[0x4] = OPCODE_ICONST_1;
     opcodes[0x5] = OPCODE_ICONST_2;
 
     opcodes[0x57] = OPCODE_POP;
+    opcodes[0x59] = OPCODE_DUP;
+    
 
     opcodes[0x6] = OPCODE_ICONST_3;
     opcodes[0x7] = OPCODE_ICONST_4;
@@ -469,12 +666,21 @@ OPCODE** initOpcodes(){
     
 
     opcodes[0xb] = OPCODE_DCONST_0;
+    
+    opcodes[0xb1] = OPCODE_RETURN;
+    opcodes[0xb2] = OPCODE_GETSTATIC;
+    opcodes[0xb4] = OPCODE_GETFIELD;
+    opcodes[0xb5] = OPCODE_PUTFIELD;
+    opcodes[0xb6] = OPCODE_INVOKEVIRTUAL;
+    opcodes[0xb7] = OPCODE_INVOKESPECIAL;
+    opcodes[0xb8] = OPCODE_INVOKESTATIC;
+
+    opcodes[0xbb] = OPCODE_NEW;
+    
+    
     opcodes[0xc] = OPCODE_DCONST_1;
     opcodes[0xd] = OPCODE_DCONST_2;
 
-    opcodes[0xb1] = OPCODE_RETURN;
-    opcodes[0xb7] = OPCODE_INVOKESTATIC;
-    opcodes[0xb8] = OPCODE_INVOKESTATIC;
     
     opcodes[0x60] = OPCODE_IADD;
     opcodes[0xac] = OPCODE_IRETURN;

@@ -5,6 +5,8 @@
 #include "attribute.h"
 #include "constantPool.h"
 
+typedef struct ClassFile ClassFile;
+typedef struct Machine Machine;
 typedef uint64_t LocalVariable;
 // A single local variable can hold a value of type boolean, byte, char, short, int, float, reference, or returnAddress. 
 // A pair of local variables can hold a value of type long or double. 
@@ -15,7 +17,7 @@ typedef uint64_t Operand;
 typedef struct Frame{
     LocalVariable* localVariables;
     struct Stack* operandStack;
-    struct Stack* JVMSTACK; // ref to jvmstack.
+    struct Machine* machine;
     struct ClassFile* classRef;
     uint32_t pc; // program counter
     Code_attribute* code;
@@ -23,6 +25,6 @@ typedef struct Frame{
     //It contains several kinds of constants, ranging from numeric literals known at compile-time to method and field references that must be resolved at run-time.
 } Frame;
 
-Frame createFrame();
+Frame createNewFrame (Code_attribute code, ClassFile* cf, Machine* machine);
 
 #endif

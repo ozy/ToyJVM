@@ -3,6 +3,10 @@
 #include <inttypes.h>
 #include "attribute.h"
 #include <stdio.h>
+#include "classFile.h"
+#include "constantPool.h"
+
+typedef struct JavaClass JavaClass;
 typedef enum field_access_flags{
     F_ACC_PUBLIC 	    = 0x0001, // Declared public; may be accessed from outside its package.
     F_ACC_PRIVATE 	    = 0x0002, // Declared private; usable only within the defining class.
@@ -21,8 +25,14 @@ typedef struct field_info {
     uint16_t descriptor_index;
     uint16_t attributes_count;
     attribute_info* attributes;
+    uint64_t value;
 }field_info;
 
 field_info getField_Info(FILE* fd);
+
+field_info* getStaticField(ClassFile* cf, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc);
+field_info* getField(JavaClass* jc, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc);
+void putField(JavaClass* instance, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc, uint64_t val);
+
 
 #endif
