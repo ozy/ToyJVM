@@ -11,6 +11,7 @@
 #include "debug.h"
 #include "printStream.h"
 #include "stringBuilder.h"
+#include <math.h>
 
 uint8_t read1Byte(Frame* frame){
     return *(uint8_t*)&frame->code->code[++frame->pc]; // to get the first arg. of the opcode
@@ -197,6 +198,15 @@ void* OPCODE_DUP(Frame* frame){
     pushStack(&val, frame->operandStack);
 	return NULL;
 }
+void* OPCODE_DUP_X1(Frame* frame){
+    uint64_t val1 = *(uint64_t*)popStack(frame->operandStack);
+    uint64_t val2 = *(uint64_t*)popStack(frame->operandStack);
+    pushStack(&val1, frame->operandStack);
+    pushStack(&val2, frame->operandStack);
+    pushStack(&val1, frame->operandStack);
+	return NULL;
+}
+
 /////////////
 // INTEGER //
 /////////////
@@ -276,6 +286,33 @@ void* OPCODE_DDIV(Frame* frame){
     double val2 = *(double*) popStack(frame->operandStack);
     double val1 = *(double*) popStack(frame->operandStack);
     double val = val1 / val2;
+    pushStack(&val, frame->operandStack);
+	return NULL;
+}
+void* OPCODE_D2F(Frame* frame){
+    float val = (float)*(double*)popStack(frame->operandStack);
+    pushStack(&val, frame->operandStack);
+	return NULL;
+}
+void* OPCODE_D2I(Frame* frame){
+    int64_t val = (int32_t)*(double*)popStack(frame->operandStack);
+    pushStack(&val, frame->operandStack);
+	return NULL;
+}
+void* OPCODE_D2L(Frame* frame){
+    int64_t val = (int64_t)*(double*)popStack(frame->operandStack);
+    pushStack(&val, frame->operandStack);
+	return NULL;
+}
+void* OPCODE_DNEG(Frame* frame){
+    double val = -*(double*) popStack(frame->operandStack);
+    pushStack(&val, frame->operandStack);
+	return NULL;
+}
+void* OPCODE_DREM(Frame* frame){
+    double val2 = *(double*) popStack(frame->operandStack);
+    double val1 = *(double*) popStack(frame->operandStack);
+    double val = fmod(val1,val2);
     pushStack(&val, frame->operandStack);
 	return NULL;
 }
@@ -514,7 +551,7 @@ void* OPCODE_PUTFIELD(Frame* frame){
     return NULL;
 }
 
-void* OPCODE_IRETURN(Frame* frame){
+void* OPCODE_NRETURN(Frame* frame){
     uint64_t* val = malloc(sizeof(val)); // freed later
     *val = *(uint64_t*)popStack(frame->operandStack);
     DEBUG_PRINT(("iret val : %d, stackTop: %d\n", *val, frame->operandStack->top));
@@ -735,6 +772,7 @@ OPCODE** initOpcodes(){
     // jumptable
     OPCODE** opcodes = malloc (sizeof(OPCODE*) * 255); // leak, consider static
 
+    opcodes[0x1] = OPCODE_ICONST_0; // null
     opcodes[0x2] = OPCODE_ICONST_M1;
     opcodes[0x3] = OPCODE_ICONST_0;
     opcodes[0x4] = OPCODE_ICONST_1;
@@ -748,6 +786,8 @@ OPCODE** initOpcodes(){
     opcodes[0xb] = OPCODE_DCONST_0;
     opcodes[0xc] = OPCODE_DCONST_1;
     opcodes[0xd] = OPCODE_DCONST_2;
+    opcodes[0xe] = OPCODE_DCONST_0; // double
+    opcodes[0xf] = OPCODE_DCONST_1;
 
     opcodes[0x10] = OPCODE_BIPUSH;
     opcodes[0x11] = OPCODE_SIPUSH;
@@ -758,6 +798,7 @@ OPCODE** initOpcodes(){
 
     opcodes[0x15] = OPCODE_NLOAD; //iload
     opcodes[0x16] = OPCODE_NLOAD; //lload
+    opcodes[0x18] = OPCODE_NLOAD; //dload
     opcodes[0x19] = OPCODE_NLOAD; //aload
     
     // iload
@@ -770,7 +811,12 @@ OPCODE** initOpcodes(){
     opcodes[0x1f] = OPCODE_NLOAD_1;
     opcodes[0x20] = OPCODE_NLOAD_2;
     opcodes[0x21] = OPCODE_NLOAD_3;
-    //aload
+    // dload
+    opcodes[0x26] = OPCODE_NLOAD_0;
+    opcodes[0x27] = OPCODE_NLOAD_1;
+    opcodes[0x28] = OPCODE_NLOAD_2;
+    opcodes[0x29] = OPCODE_NLOAD_3;
+    // aload
     opcodes[0x2a] = OPCODE_NLOAD_0;
     opcodes[0x2b] = OPCODE_NLOAD_1;
     opcodes[0x2c] = OPCODE_NLOAD_2;
@@ -790,11 +836,20 @@ OPCODE** initOpcodes(){
 
     // lstore
     opcodes[0x3f] = OPCODE_NSTORE_0;
+
+    opcodes[0x39] = OPCODE_NSTORE; // dstore
+
     opcodes[0x40] = OPCODE_NSTORE_1;
     opcodes[0x41] = OPCODE_NSTORE_2;
     opcodes[0x42] = OPCODE_NSTORE_3;
 
+    // dstore
+    opcodes[0x47] = OPCODE_NSTORE_0;
+    opcodes[0x48] = OPCODE_NSTORE_1;
+    opcodes[0x49] = OPCODE_NSTORE_2;
+    opcodes[0x4a] = OPCODE_NSTORE_3;
 
+    // astore
     opcodes[0x4b] = OPCODE_NSTORE_0;
     opcodes[0x4c] = OPCODE_NSTORE_1;
     opcodes[0x4d] = OPCODE_NSTORE_2;
@@ -805,14 +860,29 @@ OPCODE** initOpcodes(){
     
     opcodes[0x61] = OPCODE_LADD;
 
+    opcodes[0x67] = OPCODE_DSUB;
+
     opcodes[0x68] = OPCODE_IMUL;
 
+    opcodes[0x6b] = OPCODE_DMUL;
     opcodes[0x6d] = OPCODE_LDIV;
+    opcodes[0x6f] = OPCODE_DDIV;
+
+    opcodes[0x73] = OPCODE_DREM;
+    opcodes[0x77] = OPCODE_DNEG;
 
     opcodes[0x84] = OPCODE_IINC;
     opcodes[0x85] = OPCODE_I2L;
 
+    opcodes[0x8e] = OPCODE_D2I;
+    opcodes[0x8f] = OPCODE_D2L;
+
+    opcodes[0x90] = OPCODE_D2F;
+
     opcodes[0x94] = OPCODE_LCMP;
+
+    opcodes[0x97] = OPCODE_DCMPG; //dcmpl
+    opcodes[0x98] = OPCODE_DCMPG; //dcmpg
 
     opcodes[0x99] = OPCODE_IFEQ;
     opcodes[0x9a] = OPCODE_IFNE;
@@ -826,6 +896,9 @@ OPCODE** initOpcodes(){
     opcodes[0xa3] = OPCODE_IF_ICMPGT;
     opcodes[0xa7] = OPCODE_GOTO;
         
+    opcodes[0xaf] = OPCODE_NRETURN; // d
+
+    opcodes[0xb0] = OPCODE_NRETURN;
     opcodes[0xb1] = OPCODE_RETURN;
     opcodes[0xb2] = OPCODE_GETSTATIC;
     opcodes[0xb4] = OPCODE_GETFIELD;
@@ -837,6 +910,6 @@ OPCODE** initOpcodes(){
     opcodes[0xbb] = OPCODE_NEW;
     
     opcodes[0x60] = OPCODE_IADD;
-    opcodes[0xac] = OPCODE_IRETURN;
+    opcodes[0xac] = OPCODE_NRETURN;
     return opcodes;
 }
