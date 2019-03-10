@@ -19,3 +19,5 @@ test/*.class
 
 # Ignore test outputs
 test/*.out
+
+.vscode/*
