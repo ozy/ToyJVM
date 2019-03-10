@@ -1,10 +1,9 @@
 #include "javaClass.h"
 #include <stdlib.h>
+#include "heap.h"
+#include <string.h>
 
 void initInstanceFields(JavaClass* instance){
     instance->fields = malloc(instance->classFile->fields_count * sizeof(field_info));
-    for (int fieldId=0; fieldId < instance->classFile->fields_count; fieldId++){
-        instance->fields[fieldId] = instance->classFile->fields[fieldId];
-    }
-    // todo: init with memcpy
+    memcpy(instance->fields, instance->classFile->fields, instance->classFile->fields_count * sizeof(field_info));
 }

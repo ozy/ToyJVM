@@ -29,6 +29,12 @@ field_info getField_Info(FILE* fd){
 
 }
 
+void destroyField_Info(field_info* field){
+    for (; field->attributes_count > 0; field->attributes_count--)
+        destroyAttribute_Info(&field->attributes[field->attributes_count-1]);
+    free(field->attributes);
+}
+
 void putField(JavaClass* instance, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc, uint64_t val){
     field_info* field = getField(instance, fieldName, fieldDesc);
     field->value = val;

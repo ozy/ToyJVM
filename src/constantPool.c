@@ -32,6 +32,7 @@ cp_info cp_infoFromFile(FILE* fd){
             break;
         case CONSTANT_Long:
         case CONSTANT_Double:
+            // 8 byte types takes two indexes in constant pool. So increase the counter by one extra.
             fread(&info.info._8BYTES_info.bytes,sizeof(info.info._8BYTES_info.bytes),1,fd);
             info.info._8BYTES_info.bytes = be64toh(info.info._8BYTES_info.bytes);
             break;
@@ -46,6 +47,7 @@ cp_info cp_infoFromFile(FILE* fd){
             info.info.utf8_info.length = be16toh(info.info.utf8_info.length);
             info.info.utf8_info.bytes = malloc(info.info.utf8_info.length); //leak
             fread(info.info.utf8_info.bytes,info.info.utf8_info.length,1,fd); // offsetting 2 bytes + reading utf8
+            //printf("len: %d, s: %.*s\n",info.info.utf8_info.length,info.info.utf8_info.length, info.info.utf8_info.bytes);
             break;
         case CONSTANT_MethodHandle:; // compiler wants a statement after label.
             fread(&info.info.methodHandle_info.reference_kind,sizeof(info.info.methodHandle_info.reference_kind),1,fd); // reference kind
@@ -69,4 +71,9 @@ cp_info cp_infoFromFile(FILE* fd){
     }
     return info;
 
+}
+
+void destroyCp_Info(cp_info* info){
+    if (info->tag == CONSTANT_Utf8)
+        free(info->info.utf8_info.bytes);
 }

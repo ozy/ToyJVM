@@ -39,6 +39,7 @@ int isUtf8Equal(CONSTANT_Utf8_info s1, CONSTANT_Utf8_info s2);
 int isUtf8EqualsToString(CONSTANT_Utf8_info s1, const char* s2);
 
 void initClass(ClassFile* cf, Frame* frame);
+void destroyClass(ClassFile* cf);
 
 method_info* getMethodByName(ClassFile* cf, const char* name, const char* desc);
 method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Utf8_info name_utf8, CONSTANT_Utf8_info descriptor_utf8);

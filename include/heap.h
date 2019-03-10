@@ -21,4 +21,5 @@ uint64_t hAlloc(size_t size, Heap* heap);
 uint64_t hExtend(uint64_t addr, size_t size, Heap* heap);
 void* hFree(uint64_t addr, Heap* heap);
 
+void destroyHeap(Heap* heap);
 #endif

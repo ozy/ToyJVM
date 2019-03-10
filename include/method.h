@@ -21,5 +21,6 @@ typedef enum method_access_flags{
 }method_access_flags;
 
 #define getMethod_Info(fd) getField_Info(fd) // same too, no need to reimplement
+#define destroyMethod_Info(info) destroyField_Info(info)
 
 #endif

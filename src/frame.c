@@ -18,3 +18,11 @@ Frame createNewFrame (Code_attribute code, ClassFile* cf, Machine* machine){
     newFrame.machine = machine;
     return newFrame;
 }
+
+void destroyFrame (Frame* frame){
+    free(frame->localVariables);
+    free(frame->code);
+    destroyStack(frame->operandStack);
+    // dont free the frame struct itself. It contains an address into JVMStack.
+    // JVMStack is responsible for freeing or overwriting it.
+}

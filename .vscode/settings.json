@@ -1,0 +1,20 @@
+{
+    "files.associations": {
+        "stdlib.h": "c",
+        "stdio.h": "c",
+        "field.h": "c",
+        "endian.h": "c",
+        "opcode.h": "c",
+        "classfile.h": "c",
+        "machine.h": "c",
+        "constantpool.h": "c",
+        "stack.h": "c",
+        "frame.h": "c",
+        "method.h": "c",
+        "javaclass.h": "c",
+        "heap.h": "c",
+        "attribute.h": "c",
+        "debug.h": "c",
+        "printstream.h": "c"
+    }
+}

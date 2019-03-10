@@ -37,7 +37,6 @@ void* popStack(Stack* stack){
         stack->top -= stack->stackType;
         if (stack->stackType == TYPE_JVMSTACK){
             val = (Frame*)(&stack->stack[stack->top]);
-            printf("popped\n");
         }else if(stack->stackType == TYPE_OPERANDSTACK){
             val = (uint64_t*)(&stack->stack[stack->top]);
         }
@@ -50,4 +49,9 @@ void* popStack(Stack* stack){
 
 void* peekStack(Stack* stack){
     return (stack->top > 0)?(Stack*)(stack->stack + stack->top - stack->stackType):(NULL);
+}
+
+void destroyStack(Stack* stack){
+    free(stack->stack);
+    free(stack);
 }

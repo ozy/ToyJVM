@@ -34,5 +34,5 @@ field_info* getStaticField(ClassFile* cf, CONSTANT_Utf8_info fieldName, CONSTANT
 field_info* getField(JavaClass* jc, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc);
 void putField(JavaClass* instance, CONSTANT_Utf8_info fieldName, CONSTANT_Utf8_info fieldDesc, uint64_t val);
 
-
+void destroyField_Info(field_info* field);
 #endif

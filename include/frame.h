@@ -26,5 +26,5 @@ typedef struct Frame{
 } Frame;
 
 Frame createNewFrame (Code_attribute code, ClassFile* cf, Machine* machine);
-
+void destroyFrame (Frame* frame);
 #endif

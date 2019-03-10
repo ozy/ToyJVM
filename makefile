@@ -6,8 +6,8 @@ DEPDIR	= dep
 
 CC	= gcc
 TARGET	= main
-CFLAGS	= -g -O0 -I$(HDRDIR)
-LFLAGS	=
+CFLAGS	= -g -O0 -I$(HDRDIR) #-DDEBUG=1
+LFLAGS	= -lm
 
 SOURCES	:= $(wildcard $(SRCDIR)/*.c)
 HEADERS := $(wildcard $(HDRDIR)/*.h)

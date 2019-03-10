@@ -15,6 +15,10 @@ attribute_info getAttribute_Info(FILE* fd){
     return attribute;
 }
 
+void destroyAttribute_Info(attribute_info* attribute){
+    free(attribute->info);
+}
+
 Code_attribute getCode_AttributeFromAttribute_info(attribute_info attributeInfo){
     Code_attribute attribute;
     /*

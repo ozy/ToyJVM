@@ -2,49 +2,64 @@
 #include "frame.h"
 #include "opcode.h"
 #include "stack.h"
+#include "debug.h"
+#include "classFile.h"
 
-void* executeCode(Stack* JVMSTACK, OPCODE** opcodes){ // anything can be returned from an execution
+void* executeCode(Machine* JVM, OPCODE** opcodes){ // anything can be returned from an execution
 
     Frame* frame;
     void* retCode;
     while (1){
-        frame = (Frame*)peekStack(JVMSTACK);
-        printf("---------------\n");
-        printf("peeked stack is %p\n",frame);
+        frame = (Frame*)peekStack(JVM->JVMSTACK);
+        DEBUG_PRINT(("---------------\n"));
+        DEBUG_PRINT(("peeked stack is %p\n",frame));
 
+        #ifdef DEBUG
         printf("---Code Dump---\n");
         for (int qq=0; qq<frame->code->code_length; qq++)
             printf("%d: 0x%1x\n", qq,frame->code->code[qq]);
         printf("-----DUMP------\n");
+        #endif
 
         for (; frame->pc < frame->code->code_length; frame->pc++){
             retCode = NULL;
-            printf("pc: %d -> 0x%1x, opStackTop: %d\n",frame->pc , frame->code->code[frame->pc],frame->operandStack->top);
+            DEBUG_PRINT(("pc: %d -> 0x%1x, opStackTop: %d\n",frame->pc , frame->code->code[frame->pc],frame->operandStack->top));
             retCode = opcodes[frame->code->code[frame->pc]](frame);
             if (retCode != NULL){
                 // the opcode returned something to push
                 // to the invoker operand stack
-                //printf("retcode is not null\n");
+                //DEBUG_PRINT(("retcode is not null\n"));
                 break;
             }
-            if (frame != (Frame*)peekStack(JVMSTACK)){
+            if (frame != (Frame*)peekStack(JVM->JVMSTACK)){
                 break; // frame changed, break!
             }
         }
         if (retCode != NULL){
-            printf("returned something, in num: %d\n", *(uint64_t*) retCode);
-            popStack(JVMSTACK); //destroy completely
-            Frame* frameInvoker = (Frame*)peekStack(JVMSTACK);
+            DEBUG_PRINT(("returned something, in num: %d\n", *(uint64_t*) retCode));
+            destroyFrame((Frame*)popStack(JVM->JVMSTACK)); //destroy completely
+            Frame* frameInvoker = (Frame*)peekStack(JVM->JVMSTACK);
             pushStack(retCode,frameInvoker->operandStack); // frame returned something to push
+            free(retCode); // iret mallocs it.
             // into previous frames operand stack
         }else if (frame->pc > frame->code->code_length){
-            printf("no code left to execute in this frame pc: %d, codelen: %d\n", frame->pc, frame->code->code_length);
-            popStack(JVMSTACK); //destroy completely
+            DEBUG_PRINT(("no code left to execute in this frame pc: %d, codelen: %d\n", frame->pc, frame->code->code_length));
+            destroyFrame((Frame*)popStack(JVM->JVMSTACK)); //destroy completely
             // this frame finished without returning anything
         }
-        if (peekStack(JVMSTACK) == NULL){
-            printf("no frame left to execute\n");
+        if (peekStack(JVM->JVMSTACK) == NULL){
+            DEBUG_PRINT(("no frame left to execute\n"));
+            free(opcodes);
             return NULL;
         }
     }
+}
+
+void destroyMachine(Machine* machine){
+    for (;machine->numClasses>0; machine->numClasses--)
+        destroyClass(&machine->classFiles[machine->numClasses-1]);
+
+    free(machine->classFiles);
+    destroyStack(machine->JVMSTACK);
+    destroyHeap(machine->heap);
 }

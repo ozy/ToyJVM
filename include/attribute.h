@@ -35,4 +35,5 @@ typedef struct Code_attribute {
 attribute_info getAttribute_Info(FILE* fd);
 Code_attribute getCode_AttributeFromAttribute_info(attribute_info fd);
 
+void destroyAttribute_Info(attribute_info* attribute);
 #endif

@@ -6,6 +6,7 @@
 #include "method.h"
 #include "constantPool.h"
 #include "string.h"
+#include "debug.h"
 
 ClassFile classFromFile(const char* filename){
     FILE *fd;
@@ -44,6 +45,10 @@ ClassFile classFromFile(const char* filename){
 
     for (int poolCount=0; poolCount < classFile.constant_pool_count-1; poolCount++){ // -1 same reason above
         classFile.constant_pool[poolCount] = cp_infoFromFile(fd); // leak 
+        if (classFile.constant_pool[poolCount].tag == CONSTANT_Long || classFile.constant_pool[poolCount].tag == CONSTANT_Double){
+            // all 8 byte types in cp takes two indexes. So increase extra.
+            classFile.constant_pool[++poolCount].tag=0;
+        } 
     }
 
     /*
@@ -107,6 +112,8 @@ ClassFile classFromFile(const char* filename){
     }
 
     classFile.initalized = 0; // false
+
+    fclose(fd);
     return classFile;
 }
 
@@ -168,6 +175,10 @@ ClassFile* getClassFromName(const char* className, Machine* machine){
         // todo
         
     }
+    // This is a hack in order to run System.out.println()
+    // check if its a native class
+    if (!strcmp(className, "java/lang/System") || !strcmp(className, "java/io/PrintStream") || !strcmp(className, "java/lang/StringBuilder"))
+        return NULL;
     // create if not exists
     char buf[strlen(className)+strlen(".class")+1];
     strcpy(buf, className);
@@ -181,7 +192,7 @@ method_info* getMethodByName(ClassFile* cf, const char* name, const char* desc){
         CONSTANT_Utf8_info classMethodName_utf8 = cf->constant_pool[cf->methods[methodId].name_index-1].info.utf8_info; // todo possibly optimize this func
         CONSTANT_Utf8_info classMethodDesc_utf8 = cf->constant_pool[cf->methods[methodId].descriptor_index-1].info.utf8_info; // todo possibly optimize this func
         if (isUtf8EqualsToString(classMethodName_utf8, name) && isUtf8EqualsToString(classMethodDesc_utf8, desc)){
-            printf ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes);
+            DEBUG_PRINT( ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes));
             return &cf->methods[methodId];
         }
     }
@@ -191,7 +202,7 @@ method_info* getMethodByName(ClassFile* cf, const char* name, const char* desc){
 void initClass(ClassFile* cf, Frame* frame){
     if (!cf->initalized){
         method_info* method = getMethodByName(cf, "<clinit>","()V");
-        //printf ("Method's Class Name: %.*s\n",name_utf8.length,name_utf8.bytes);
+        //DEBUG_PRINT( ("Method's Class Name: %.*s\n",name_utf8.length,name_utf8.bytes));
         Code_attribute code;
         if (method != NULL){ 
             code = getCode_AttributeFromAttribute_info(method->attributes[0]);
@@ -202,18 +213,39 @@ void initClass(ClassFile* cf, Frame* frame){
             frame->pc++;
         }else{
             // todo method not found
-            printf("method not found \n");
+            DEBUG_PRINT(("<clinit> method not found \n"));
         }
     }
 }
 
+void destroyClass(ClassFile* cf){
+    for (--cf->constant_pool_count; cf->constant_pool_count>0; cf->constant_pool_count--)
+        destroyCp_Info(&cf->constant_pool[cf->constant_pool_count-1]);
+
+    free(cf->constant_pool);
+
+    free(cf->interfaces);
+
+    for (; cf->fields_count>0; cf->fields_count--)
+        destroyField_Info(&cf->fields[cf->fields_count-1]);
+    free(cf->fields);
+
+    for (; cf->methods_count>0; cf->methods_count--)
+        destroyMethod_Info(&cf->methods[cf->methods_count-1]);
+    free(cf->methods);
+
+    for (; cf->attributes_count>0; cf->attributes_count--)
+        destroyAttribute_Info(&cf->attributes[cf->attributes_count-1]);
+    free(cf->attributes);
+}
+
 method_info* canClassHandleMethod(ClassFile* cf, CONSTANT_Utf8_info name_utf8, CONSTANT_Utf8_info descriptor_utf8){
-    printf ("Invoked Method Name: %.*s, %.*s\n",name_utf8.length,name_utf8.bytes, descriptor_utf8.length,descriptor_utf8.bytes);
+    DEBUG_PRINT( ("Invoked Method Name: %.*s, %.*s\n",name_utf8.length,name_utf8.bytes, descriptor_utf8.length,descriptor_utf8.bytes));
     for (int methodId=0; methodId < cf->methods_count; methodId++){
         CONSTANT_Utf8_info classMethodName_utf8 = cf->constant_pool[cf->methods[methodId].name_index-1].info.utf8_info; // todo possibly optimize this func
         CONSTANT_Utf8_info classMethodDesc_utf8 = cf->constant_pool[cf->methods[methodId].descriptor_index-1].info.utf8_info; // todo possibly optimize this func
         if (isUtf8Equal(name_utf8, classMethodName_utf8) && isUtf8Equal(descriptor_utf8, classMethodDesc_utf8)){
-            printf ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes);
+            DEBUG_PRINT( ("Found Method Name: %.*s\n",classMethodName_utf8.length,classMethodName_utf8.bytes));
             return &cf->methods[methodId];
         }
     }
@@ -236,6 +268,11 @@ int checkFormat(ClassFile* cf){
     //4
     for (int constantPoolCount=0; constantPoolCount < cf->constant_pool_count-1; constantPoolCount++){
         switch (cf->constant_pool[constantPoolCount].tag){
+            case CONSTANT_Double:
+            case CONSTANT_Long:
+                // oracle's stupid ideas. see double_info in constantpool.c
+                constantPoolCount++;
+                break;
             case CONSTANT_Class:; // empty statement ;
                 uint16_t utf8Index = cf->constant_pool[constantPoolCount].info.class_info.name_index;
                 if (cf->constant_pool[utf8Index-1].tag != CONSTANT_Utf8)
