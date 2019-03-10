@@ -1,12 +1,10 @@
-package test;
-
 class InstanceTest {
     public int num;
 
 	public static void main(String[] args) {
-		test_single();
-		test_multiple_1();
-		test_multiple_2();
+		System.out.println(""+test_single());
+		System.out.println(""+test_multiple_1());
+		System.out.println(""+test_multiple_2());
 	}
 
     public InstanceTest() {

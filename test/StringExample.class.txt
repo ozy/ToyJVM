@@ -1,0 +1,7 @@
+s1: Computer Science
+s2: Computer Science 307
+s4: is fun
+s5: Computer Science 307is fun
+s6: 8total
+s7: total 35
+s8:  35total
