@@ -1,6 +1,6 @@
 #include "attribute.h"
 #include <stdlib.h>
-#include <endian.h>
+#include "endianness.h"
 #include <string.h>
 attribute_info getAttribute_Info(FILE* fd){
     attribute_info attribute;
