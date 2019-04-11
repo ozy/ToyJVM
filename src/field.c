@@ -1,6 +1,6 @@
 #include "field.h"
 #include <stdio.h>
-#include <endian.h>
+#include "endianness.h"
 #include <stdlib.h>
 #include "classFile.h"
 #include "constantPool.h"

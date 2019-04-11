@@ -1,7 +1,7 @@
 #include "classFile.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <endian.h> // check for cross platform compatibility
+#include "endianness.h"
 #include "field.h"
 #include "method.h"
 #include "constantPool.h"

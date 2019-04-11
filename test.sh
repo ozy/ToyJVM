@@ -1,6 +1,7 @@
 #!/bin/sh
 cd test
 rm *.class
+rm test/*.out
 javac *.java
 cd ..
 

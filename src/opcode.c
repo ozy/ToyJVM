@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "stack.h"
-#include <endian.h>
+#include "endianness.h"
 #include "constantPool.h"
 #include "frame.h"
 #include "classFile.h"
